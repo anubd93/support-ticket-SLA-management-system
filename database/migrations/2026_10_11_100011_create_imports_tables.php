@@ -37,7 +37,7 @@ return new class extends Migration
             $table->unsignedInteger('row_number');
             $table->json('row_data');
             $table->json('errors');
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
             $table->timestamp('deleted_at')->nullable();
 
             $table->index(['import_id', 'row_number']);

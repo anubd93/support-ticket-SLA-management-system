@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('type', 40);
             $table->json('old_values')->nullable();
             $table->json('new_values')->nullable();
-            $table->timestamp('created_at')->useCurrent();
+            $table->timestamps();
             $table->timestamp('deleted_at')->nullable();
             $table->index(['ticket_id', 'created_at']);
             $table->index(['type', 'created_at']);
