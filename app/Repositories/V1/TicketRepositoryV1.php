@@ -12,7 +12,7 @@ class TicketRepositoryV1
 {
     private $id, $ticket_number, $subject, $description, $priority, $status, $source,
         $external_reference, $category_id, $created_by, $assigned_to, $assigned_at,
-        $sla_due_at, $sla_paused_at, $sla_paused_minutes, $first_responded_at,
+        $sla_due_at, $sla_warning_at, $sla_paused_at, $sla_paused_minutes, $first_responded_at,
         $sla_warning_sent_at, $sla_breached_at, $escalated_at, $escalation_level,
         $resolved_at, $closed_at, $lock_version, $created_at;
 
@@ -94,6 +94,12 @@ class TicketRepositoryV1
         return $this;
     }
 
+    public function setSlaWarningAt($sla_warning_at)
+    {
+        $this->sla_warning_at = $sla_warning_at;
+        return $this;
+    }
+
     public function setSlaPausedAt($sla_paused_at)
     {
         $this->sla_paused_at = $sla_paused_at;
@@ -172,6 +178,7 @@ class TicketRepositoryV1
             'category_id' => $this->category_id,
             'created_by' => $this->created_by,
             'sla_due_at' => $this->sla_due_at,
+            'sla_warning_at' => $this->sla_warning_at,
         ]);
     }
 
@@ -188,6 +195,7 @@ class TicketRepositoryV1
             'category_id' => $this->category_id,
             'priority' => $this->priority,
             'sla_due_at' => $this->sla_due_at,
+            'sla_warning_at' => $this->sla_warning_at,
         ]);
 
         return $ticket;
@@ -199,6 +207,10 @@ class TicketRepositoryV1
             'status' => $this->status,
             'resolved_at' => $this->resolved_at,
             'closed_at' => $this->closed_at,
+            'sla_due_at' => $this->sla_due_at,
+            'sla_warning_at' => $this->sla_warning_at,
+            'sla_paused_at' => $this->sla_paused_at,
+            'sla_paused_minutes' => $this->sla_paused_minutes,
         ]);
 
         return $ticket;
@@ -262,6 +274,9 @@ class TicketRepositoryV1
                 't.status',
                 't.assigned_to',
                 't.sla_due_at',
+                't.sla_warning_at',
+                't.sla_paused_at',
+                't.sla_paused_minutes',
                 't.resolved_at',
                 't.closed_at',
                 't.created_at',

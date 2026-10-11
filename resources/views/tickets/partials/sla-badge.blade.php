@@ -1,10 +1,11 @@
 {{--
-    Expects: $ticket (row with status, sla_due_at, resolved_at, closed_at).
-    Simple version until the SLA module: met/missed, breached, paused, or time left.
+    Expects: $ticket (row with status, sla_due_at, sla_warning_at, resolved_at, closed_at).
+    Active: paused, breached, approaching or within. Finished: met or missed.
 --}}
 @php
     $status = \App\Enums\V1\TicketStatus::from($ticket->status);
     $dueAt = $ticket->sla_due_at ? \Illuminate\Support\Carbon::parse($ticket->sla_due_at) : null;
+    $warningAt = $ticket->sla_warning_at ? \Illuminate\Support\Carbon::parse($ticket->sla_warning_at) : null;
     $finishedAt = $ticket->resolved_at ?? $ticket->closed_at;
 @endphp
 
@@ -19,7 +20,9 @@
 @elseif ($status->pausesSla())
     <span class="badge"><i class="icon-pause"></i>Paused</span>
 @elseif ($dueAt->isPast())
-    <span class="badge red">Breached</span> <span class="xs muted">{{ $dueAt->diffForHumans(null, true) }} over</span>
+    <span class="badge red">Breached</span> <span class="xs muted">due {{ $dueAt->format('d M, H:i') }}</span>
+@elseif ($warningAt && $warningAt->isPast())
+    <span class="badge amber">Approaching</span> <span class="xs muted">due {{ $dueAt->format('d M, H:i') }}</span>
 @else
-    <span class="badge green">Within SLA</span> <span class="xs muted">{{ now()->diffForHumans($dueAt, true) }} left</span>
+    <span class="badge green">Within SLA</span> <span class="xs muted">due {{ $dueAt->format('d M, H:i') }}</span>
 @endif

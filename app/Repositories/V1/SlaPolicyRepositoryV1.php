@@ -61,9 +61,16 @@ class SlaPolicyRepositoryV1
             ->value('resolution_minutes');
     }
 
-    /**
-     * @return Collection<string, int> priority => resolution_minutes
-     */
+    public function getPolicyByPriority(): ?object
+    {
+        return DB::table('sla_policies')
+            ->select('priority', 'resolution_minutes', 'first_response_minutes', 'warning_threshold_percent')
+            ->where('priority', $this->priority)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->first();
+    }
+
     public function getActiveResolutionMinutes(): Collection
     {
         return DB::table('sla_policies')

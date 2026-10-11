@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\V1;
 
-use App\Exceptions\V1\TicketException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\V1\StoreTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketStatusRequestV1;
 use App\Services\V1\TicketServiceV1;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -47,12 +46,8 @@ class TicketControllerV1 extends Controller
                 'message' => "Ticket {$ticket->ticket_number} created.",
                 'redirect' => route('tickets.show', $ticket->id),
             ], Response::HTTP_CREATED);
-        } catch (\Exception $exception) {
-            report($exception);
-
-            return response()->json([
-                'message' => 'Something went wrong. Please try again.'
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $exception) {
+            return response()->json(['message' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -64,6 +59,7 @@ class TicketControllerV1 extends Controller
         return view('tickets.show', [
             'ticket' => $ticket,
             'activities' => $this->ticketServiceV1->getActivities($id),
+            'sla' => $this->ticketServiceV1->getSlaSummary($ticket),
         ]);
     }
 
@@ -84,20 +80,8 @@ class TicketControllerV1 extends Controller
                 'message' => 'Ticket updated.',
                 'redirect' => route('tickets.show', $id),
             ]);
-        } catch (ModelNotFoundException) {
-            return response()->json([
-                'message' => 'Ticket not found.'
-            ], Response::HTTP_NOT_FOUND);
-        } catch (TicketException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage()
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        } catch (\Exception $exception) {
-            report($exception);
-
-            return response()->json([
-                'message' => 'Something went wrong. Please try again.'
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $exception) {
+            return response()->json(['message' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 
@@ -109,20 +93,8 @@ class TicketControllerV1 extends Controller
             return response()->json([
                 'message' => "Status changed to {$ticket->status->label()}.",
             ]);
-        } catch (ModelNotFoundException) {
-            return response()->json([
-                'message' => 'Ticket not found.'
-            ], Response::HTTP_NOT_FOUND);
-        } catch (TicketException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage()
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        } catch (\Exception $exception) {
-            report($exception);
-
-            return response()->json([
-                'message' => 'Something went wrong. Please try again.'
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (Exception $exception) {
+            return response()->json(['message' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
     }
 }

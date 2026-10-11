@@ -3,6 +3,7 @@
 namespace App\Services\V1;
 
 use App\Enums\V1\ActivityType;
+use App\Enums\V1\SlaStatus;
 use App\Enums\V1\TicketPriority;
 use App\Enums\V1\TicketSource;
 use App\Enums\V1\TicketStatus;
@@ -12,6 +13,7 @@ use App\Repositories\V1\CategoryRepositoryV1;
 use App\Repositories\V1\TicketActivityRepositoryV1;
 use App\Repositories\V1\TicketRepositoryV1;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class TicketServiceV1
@@ -27,6 +29,7 @@ class TicketServiceV1
     {
         return DB::transaction(function () use ($data, $userId) {
             $priority = TicketPriority::from($data['priority']);
+            $deadlines = $this->slaCalculatorServiceV1->deadlines($priority, now());
 
             $ticket = $this->ticketRepositoryV1
                 ->setTicketNumber($this->ticketNumberServiceV1->generate())
@@ -37,7 +40,8 @@ class TicketServiceV1
                 ->setStatus(TicketStatus::Open->value)
                 ->setSource(TicketSource::Web->value)
                 ->setCreatedBy($userId)
-                ->setSlaDueAt($this->slaCalculatorServiceV1->dueAt($priority, now()))
+                ->setSlaDueAt($deadlines['due_at'])
+                ->setSlaWarningAt($deadlines['warning_at'])
                 ->store();
 
             $this->logActivity($ticket->id, $userId, ActivityType::Created, null, [
@@ -67,16 +71,18 @@ class TicketServiceV1
                 'description' => $ticket->description !== $data['description'],
             ]));
             
-            $slaDueAt = $newPriority === $oldPriority
-                ? $ticket->sla_due_at
-                : $this->slaCalculatorServiceV1->dueAt($newPriority, $ticket->created_at);
+            // A new priority means new deadlines, still counted from when the ticket was opened.
+            $deadlines = $newPriority === $oldPriority
+                ? ['due_at' => $ticket->sla_due_at, 'warning_at' => $ticket->sla_warning_at]
+                : $this->slaCalculatorServiceV1->deadlines($newPriority, $ticket->created_at, (int) $ticket->sla_paused_minutes);
 
             $this->ticketRepositoryV1
                 ->setSubject($data['subject'])
                 ->setDescription($data['description'])
                 ->setCategoryId($newCategoryId)
                 ->setPriority($newPriority->value)
-                ->setSlaDueAt($slaDueAt)
+                ->setSlaDueAt($deadlines['due_at'])
+                ->setSlaWarningAt($deadlines['warning_at'])
                 ->updateDetails($ticket);
 
             if ($newPriority !== $oldPriority) {
@@ -120,10 +126,30 @@ class TicketServiceV1
                 $resolvedAt = null;
             }
 
+            // SLA pause: the clock stops while waiting for the customer.
+            $pausedAt = $ticket->sla_paused_at;
+            $pausedMinutes = (int) $ticket->sla_paused_minutes;
+            $deadlines = ['due_at' => $ticket->sla_due_at, 'warning_at' => $ticket->sla_warning_at];
+
+            if ($to->pausesSla() && ! $from->pausesSla()) {
+                $pausedAt = now();
+            } elseif ($from->pausesSla() && ! $to->pausesSla()) {
+                // Resume: add the paused business time and move the deadlines forward.
+                if ($pausedAt) {
+                    $pausedMinutes += $this->slaCalculatorServiceV1->businessMinutesBetween($pausedAt, now());
+                }
+                $pausedAt = null;
+                $deadlines = $this->slaCalculatorServiceV1->deadlines($ticket->priority, $ticket->created_at, $pausedMinutes);
+            }
+
             $this->ticketRepositoryV1
                 ->setStatus($to->value)
                 ->setResolvedAt($resolvedAt)
                 ->setClosedAt($closedAt)
+                ->setSlaPausedAt($pausedAt)
+                ->setSlaPausedMinutes($pausedMinutes)
+                ->setSlaDueAt($deadlines['due_at'])
+                ->setSlaWarningAt($deadlines['warning_at'])
                 ->updateStatus($ticket);
 
             $type = match (true) {
@@ -141,7 +167,6 @@ class TicketServiceV1
 
     public function getActiveTickets(): LengthAwarePaginator
     {
-        // dd($this->ticketRepositoryV1->getActive(config('tickets.per_page')));
         return $this->ticketRepositoryV1->getActive(config('tickets.per_page'));
     }
 
@@ -163,6 +188,56 @@ class TicketServiceV1
     public function getActivities(int $ticketId)
     {
         return $this->ticketActivityRepositoryV1->setTicketId($ticketId)->getByTicketId();
+    }
+
+    /**
+     * SLA card data for the ticket page, all counted in business time.
+     */
+    public function getSlaSummary(object $ticket): array
+    {
+        $status = TicketStatus::from($ticket->status);
+        $policy = $this->slaCalculatorServiceV1->policyFor(TicketPriority::from($ticket->priority));
+        $dueAt = $ticket->sla_due_at ? Carbon::parse($ticket->sla_due_at) : null;
+        $warningAt = $ticket->sla_warning_at ? Carbon::parse($ticket->sla_warning_at) : null;
+        $pausedAt = $ticket->sla_paused_at ? Carbon::parse($ticket->sla_paused_at) : null;
+        $totalMinutes = $policy ? (int) $policy->resolution_minutes : null;
+
+        if (! $dueAt) {
+            return ['state' => null, 'policy_minutes' => $totalMinutes];
+        }
+
+        if (! $status->isActive()) {
+            $finishedAt = Carbon::parse($ticket->resolved_at ?? $ticket->closed_at);
+
+            return [
+                'state' => $finishedAt->lte($dueAt) ? 'met' : 'missed',
+                'policy_minutes' => $totalMinutes,
+                'due_at' => $dueAt,
+                'paused_minutes' => (int) $ticket->sla_paused_minutes,
+            ];
+        }
+
+        // While paused the remaining time is frozen at the moment the pause started.
+        $countFrom = $pausedAt ?? now();
+        $remaining = $this->slaCalculatorServiceV1->businessMinutesBetween($countFrom, $dueAt);
+        $overdue = $dueAt->lt($countFrom) ? $this->slaCalculatorServiceV1->businessMinutesBetween($dueAt, $countFrom) : 0;
+
+        $state = match (true) {
+            $status->pausesSla() => SlaStatus::Paused,
+            $dueAt->lt($countFrom) => SlaStatus::Breached,
+            $warningAt && $warningAt->lte(now()) => SlaStatus::Approaching,
+            default => SlaStatus::Within,
+        };
+
+        return [
+            'state' => $state,
+            'policy_minutes' => $totalMinutes,
+            'due_at' => $dueAt,
+            'remaining_minutes' => $remaining,
+            'overdue_minutes' => $overdue,
+            'used_percent' => $totalMinutes ? min(100, (int) round(($totalMinutes - $remaining) / $totalMinutes * 100)) : null,
+            'paused_minutes' => (int) $ticket->sla_paused_minutes,
+        ];
     }
 
     public function getFormOptions(): array

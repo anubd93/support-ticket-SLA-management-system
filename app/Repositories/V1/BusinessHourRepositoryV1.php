@@ -2,6 +2,9 @@
 
 namespace App\Repositories\V1;
 
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
 class BusinessHourRepositoryV1
 {
     private $id, $day_of_week, $is_working_day, $start_time, $end_time, $created_at;
@@ -40,5 +43,14 @@ class BusinessHourRepositoryV1
     {
         $this->created_at = $created_at;
         return $this;
+    }
+
+    public function getWeeklySchedule(): Collection
+    {
+        return DB::table('business_hours')
+            ->select('day_of_week', 'is_working_day', 'start_time', 'end_time')
+            ->whereNull('deleted_at')
+            ->get()
+            ->keyBy('day_of_week');
     }
 }

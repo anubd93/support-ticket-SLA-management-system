@@ -9,6 +9,9 @@
     $source = \App\Enums\V1\TicketSource::tryFrom($ticket->source);
     $createdAt = \Illuminate\Support\Carbon::parse($ticket->created_at);
     $dueAt = $ticket->sla_due_at ? \Illuminate\Support\Carbon::parse($ticket->sla_due_at) : null;
+    $slaState = $sla['state'] ?? null;
+    // 125 -> "2h 05m"
+    $duration = fn (int $minutes) => intdiv($minutes, 60) . 'h ' . str_pad((string) ($minutes % 60), 2, '0', STR_PAD_LEFT) . 'm';
 @endphp
 
 <div class="page-head">
@@ -31,10 +34,15 @@
     </div>
 </div>
 
-@if ($status->isActive() && ! $status->pausesSla() && $dueAt?->isPast())
+@if ($slaState === \App\Enums\V1\SlaStatus::Breached)
     <div class="callout red">
         <i class="icon-flame"></i>
-        <div><span class="strong">SLA breached.</span> This ticket was due {{ $dueAt->format('d M Y, H:i') }}.</div>
+        <div><span class="strong">SLA breached.</span> This ticket was due {{ $dueAt->format('d M Y, H:i') }} and is {{ $duration($sla['overdue_minutes']) }} of business time overdue.</div>
+    </div>
+@elseif ($slaState === \App\Enums\V1\SlaStatus::Approaching)
+    <div class="callout amber">
+        <i class="icon-hourglass"></i>
+        <div><span class="strong">Approaching SLA breach.</span> {{ $duration($sla['remaining_minutes']) }} of business time left, due {{ $dueAt->format('d M Y, H:i') }}.</div>
     </div>
 @endif
 
@@ -95,8 +103,32 @@
         <div class="card">
             <div class="card-head"><h2>SLA</h2><span class="ml-auto">@include('tickets.partials.sla-badge', ['ticket' => $ticket])</span></div>
             <div class="card-body">
+                @if ($slaState instanceof \App\Enums\V1\SlaStatus && $slaState !== \App\Enums\V1\SlaStatus::Breached)
+                    <div class="countdown" style="color: var({{ match ($slaState) { \App\Enums\V1\SlaStatus::Within => '--green', \App\Enums\V1\SlaStatus::Paused => '--muted', default => '--amber' } }})">{{ $duration($sla['remaining_minutes']) }}</div>
+                    <div class="xs muted mb-1">business time left{{ $slaState === \App\Enums\V1\SlaStatus::Paused ? ' (paused)' : '' }}</div>
+                @elseif ($slaState === \App\Enums\V1\SlaStatus::Breached)
+                    <div class="countdown" style="color: var(--red)">{{ $duration($sla['overdue_minutes']) }}</div>
+                    <div class="xs muted mb-1">business time overdue</div>
+                @endif
+
+                @if ($slaState instanceof \App\Enums\V1\SlaStatus && $sla['used_percent'] !== null)
+                    @php
+                        $barClass = match ($slaState) {
+                            \App\Enums\V1\SlaStatus::Breached => 'red',
+                            \App\Enums\V1\SlaStatus::Approaching => 'amber',
+                            \App\Enums\V1\SlaStatus::Paused => 'gray',
+                            default => 'green',
+                        };
+                    @endphp
+                    <div class="bar mb-2"><span class="{{ $barClass }}" style="width: {{ $sla['used_percent'] }}%"></span></div>
+                @endif
+
                 <dl class="meta">
+                    <div><dt>Policy</dt><dd>{{ $priority->label() }} · {{ $sla['policy_minutes'] ? $duration($sla['policy_minutes']) : 'none' }}</dd></div>
                     <div><dt>Due</dt><dd>{{ $dueAt ? $dueAt->format('d M Y, H:i') : 'No SLA policy' }}</dd></div>
+                    @if (($sla['paused_minutes'] ?? 0) > 0)
+                        <div><dt>Paused total</dt><dd>{{ $duration($sla['paused_minutes']) }}</dd></div>
+                    @endif
                     @if ($ticket->resolved_at)
                         <div><dt>Resolved</dt><dd>{{ \Illuminate\Support\Carbon::parse($ticket->resolved_at)->format('d M Y, H:i') }}</dd></div>
                     @endif
