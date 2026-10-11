@@ -8,13 +8,11 @@
         <div class="nav-label">Overview</div>
         <a href="{{ route('dashboard') }}" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}"><i class="icon-layout-dashboard"></i>Dashboard</a>
 
-        {{-- Links below are placeholders until their modules are built. --}}
         <div class="nav-label">Tickets</div>
-        <a href="#" class="nav-item"><i class="icon-inbox"></i>Active</a>
+        <a href="{{ route('tickets.index') }}" class="nav-item {{ request()->routeIs('tickets.index', 'tickets.resolved', 'tickets.show', 'tickets.edit') ? 'active' : '' }}"><i class="icon-inbox"></i>All tickets</a>
         <a href="#" class="nav-item"><i class="icon-user-x"></i>Unassigned</a>
         <a href="#" class="nav-item"><i class="icon-user-check"></i>My queue</a>
-        <a href="#" class="nav-item"><i class="icon-circle-check"></i>Resolved &amp; closed</a>
-        <a href="#" class="nav-item"><i class="icon-plus"></i>New ticket</a>
+        {{-- <a href="{{ route('tickets.create') }}" class="nav-item {{ request()->routeIs('tickets.create') ? 'active' : '' }}"><i class="icon-plus"></i>New ticket</a> --}}
 
         <div class="nav-label">People</div>
         <a href="#" class="nav-item"><i class="icon-users"></i>Users</a>

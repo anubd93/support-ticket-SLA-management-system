@@ -2,6 +2,12 @@
 
 namespace App\Repositories\V1;
 
+use App\Enums\V1\TicketStatus;
+use App\Models\V1\Ticket;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
+
 class TicketRepositoryV1
 {
     private $id, $ticket_number, $subject, $description, $priority, $status, $source,
@@ -152,5 +158,117 @@ class TicketRepositoryV1
     {
         $this->created_at = $created_at;
         return $this;
+    }
+
+    public function store(): Ticket
+    {
+        return Ticket::create([
+            'ticket_number' => $this->ticket_number,
+            'subject' => $this->subject,
+            'description' => $this->description,
+            'priority' => $this->priority,
+            'status' => $this->status,
+            'source' => $this->source,
+            'category_id' => $this->category_id,
+            'created_by' => $this->created_by,
+            'sla_due_at' => $this->sla_due_at,
+        ]);
+    }
+
+    public function findForUpdate(): Ticket
+    {
+        return Ticket::lockForUpdate()->findOrFail($this->id);
+    }
+
+    public function updateDetails(Ticket $ticket): Ticket
+    {
+        $ticket->update([
+            'subject' => $this->subject,
+            'description' => $this->description,
+            'category_id' => $this->category_id,
+            'priority' => $this->priority,
+            'sla_due_at' => $this->sla_due_at,
+        ]);
+
+        return $ticket;
+    }
+
+    public function updateStatus(Ticket $ticket): Ticket
+    {
+        $ticket->update([
+            'status' => $this->status,
+            'resolved_at' => $this->resolved_at,
+            'closed_at' => $this->closed_at,
+        ]);
+
+        return $ticket;
+    }
+
+    public function findById(): ?object
+    {
+        return $this->baseQuery()
+            ->addSelect('t.description', 't.category_id', 't.source')
+            ->where('t.id', $this->id)
+            ->first();
+    }
+
+    public function getActive(int $perPage): LengthAwarePaginator
+    {
+        return $this->baseQuery()
+            ->whereIn('t.status', TicketStatus::active())
+            ->orderByDesc('t.created_at')
+            ->orderByDesc('t.id')
+            ->paginate($perPage);
+    }
+
+    public function getFinished(int $perPage): LengthAwarePaginator
+    {
+        return $this->baseQuery()
+            ->whereIn('t.status', TicketStatus::finished())
+            ->orderByRaw('COALESCE(t.closed_at, t.resolved_at) DESC')
+            ->orderByDesc('t.id')
+            ->paginate($perPage);
+    }
+
+    public function countByGroup(): array
+    {
+        $active = TicketStatus::active();
+
+        $row = DB::table('tickets')
+            ->whereNull('deleted_at')
+            ->selectRaw(
+                'SUM(CASE WHEN status IN (' . implode(',', array_fill(0, count($active), '?')) . ') THEN 1 ELSE 0 END) AS active_count, COUNT(*) AS total_count',
+                $active
+            )
+            ->first();
+
+        $activeCount = (int) $row->active_count;
+
+        return ['active' => $activeCount, 'finished' => (int) $row->total_count - $activeCount];
+    }
+
+    private function baseQuery(): Builder
+    {
+        return DB::table('tickets as t')
+            ->join('categories as c', 'c.id', '=', 't.category_id')
+            ->join('users as u', 'u.id', '=', 't.created_by')
+            ->leftJoin('users as a', 'a.id', '=', 't.assigned_to')
+            ->whereNull('t.deleted_at')
+            ->select(
+                't.id',
+                't.ticket_number',
+                't.subject',
+                't.priority',
+                't.status',
+                't.assigned_to',
+                't.sla_due_at',
+                't.resolved_at',
+                't.closed_at',
+                't.created_at',
+                'c.name as category_name',
+                'u.name as creator_name',
+                'u.email as creator_email',
+                'a.name as assignee_name',
+            );
     }
 }

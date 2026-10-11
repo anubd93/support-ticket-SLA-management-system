@@ -2,6 +2,9 @@
 
 namespace App\Repositories\V1;
 
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
 class CategoryRepositoryV1
 {
     private $id, $name, $slug, $description, $is_active, $created_at;
@@ -40,5 +43,20 @@ class CategoryRepositoryV1
     {
         $this->created_at = $created_at;
         return $this;
+    }
+
+    public function getActive(): Collection
+    {
+        return DB::table('categories')
+            ->select('id', 'name')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get();
+    }
+
+    public function getNameById(): ?string
+    {
+        return DB::table('categories')->where('id', $this->id)->value('name');
     }
 }

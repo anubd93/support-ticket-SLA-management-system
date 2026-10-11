@@ -2,6 +2,9 @@
 
 namespace App\Repositories\V1;
 
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
 class SlaPolicyRepositoryV1
 {
     private $id, $priority, $resolution_minutes, $first_response_minutes,
@@ -47,5 +50,25 @@ class SlaPolicyRepositoryV1
     {
         $this->created_at = $created_at;
         return $this;
+    }
+
+    public function getResolutionMinutesByPriority(): ?int
+    {
+        return DB::table('sla_policies')
+            ->where('priority', $this->priority)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->value('resolution_minutes');
+    }
+
+    /**
+     * @return Collection<string, int> priority => resolution_minutes
+     */
+    public function getActiveResolutionMinutes(): Collection
+    {
+        return DB::table('sla_policies')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->pluck('resolution_minutes', 'priority');
     }
 }
