@@ -1,9 +1,8 @@
 /* ==========================================================================
-   SupportDesk - minimal design (plain CSS, dark + light themes)
+   SupportDesk - minimal design (plain CSS, dark theme)
    ========================================================================== */
 
-:root,
-[data-theme="dark"] {
+:root {
     --bg: #111113;
     --surface: #161619;
     --card: #131316;
@@ -37,42 +36,6 @@
     --note-bg: rgba(245, 181, 68, 0.06);
     --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
-}
-
-[data-theme="light"] {
-    --bg: #ffffff;
-    --surface: #fafafa;
-    --card: #ffffff;
-    --hover: #f4f4f5;
-    --active: #ececef;
-    --border: #e4e4e7;
-    --border-strong: #d4d4d8;
-    --text: #18181b;
-    --text-2: #3f3f46;
-    --muted: #71717a;
-    --faint: #a1a1aa;
-
-    --accent: #0f7f88;
-    --accent-hover: #0b6a72;
-    --accent-text: #ffffff;
-    --accent-soft: rgba(15, 127, 136, 0.08);
-
-    --green: #15803d;
-    --green-soft: rgba(22, 163, 74, 0.08);
-    --green-border: rgba(22, 163, 74, 0.35);
-    --amber: #b45309;
-    --amber-soft: rgba(217, 119, 6, 0.08);
-    --amber-border: rgba(217, 119, 6, 0.4);
-    --red: #dc2626;
-    --red-soft: rgba(220, 38, 38, 0.08);
-    --red-border: rgba(220, 38, 38, 0.35);
-    --blue: #2563eb;
-    --blue-soft: rgba(37, 99, 235, 0.08);
-    --gray-soft: rgba(113, 113, 122, 0.1);
-
-    --note-bg: rgba(217, 119, 6, 0.05);
-    --shadow: 0 12px 32px rgba(24, 24, 27, 0.12);
-    color-scheme: light;
 }
 
 *,
