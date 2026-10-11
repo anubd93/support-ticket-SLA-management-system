@@ -8,7 +8,9 @@
         <h1>Tickets</h1>
     </div>
     <div class="actions">
-        <a href="{{ route('tickets.create') }}" class="btn btn-primary"><i class="icon-plus"></i>New ticket</a>
+        @can('ticket.create')
+            <a href="{{ route('tickets.create') }}" class="btn btn-primary"><i class="icon-plus"></i>New ticket</a>
+        @endcan
     </div>
 </div>
 
@@ -37,7 +39,9 @@
                         <button type="button" class="icon-btn" data-dropdown aria-label="Actions"><i class="icon-ellipsis"></i></button>
                         <div class="menu">
                             <a href="{{ route('tickets.show', $ticket->id) }}" class="menu-item"><i class="icon-eye"></i>View</a>
-                            <a href="{{ route('tickets.edit', $ticket->id) }}" class="menu-item"><i class="icon-pencil"></i>Edit</a>
+                            @can('update', [\App\Models\V1\Ticket::class, $ticket])
+                                <a href="{{ route('tickets.edit', $ticket->id) }}" class="menu-item"><i class="icon-pencil"></i>Edit</a>
+                            @endcan
                         </div>
                     </div>
                 </td>

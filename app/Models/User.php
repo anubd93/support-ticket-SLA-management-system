@@ -3,10 +3,13 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\V1\UserRole;
+use App\Models\V1\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -20,6 +23,9 @@ class User extends Authenticatable implements OAuthenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
+    /** Permission names, loaded once per request. */
+    private ?array $permissionNames = null;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -30,6 +36,35 @@ class User extends Authenticatable implements OAuthenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'is_available' => 'boolean',
         ];
+    }
+
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        $this->permissionNames ??= $this->role?->permissions()->pluck('name')->all() ?? [];
+
+        return in_array($permission, $this->permissionNames, true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role?->name === UserRole::Admin->value;
+    }
+
+    public function isAgent(): bool
+    {
+        return $this->role?->name === UserRole::Agent->value;
+    }
+
+    public function isCustomer(): bool
+    {
+        return $this->role?->name === UserRole::Customer->value;
     }
 }

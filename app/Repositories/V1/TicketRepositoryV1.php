@@ -16,6 +16,15 @@ class TicketRepositoryV1
         $sla_warning_sent_at, $sla_breached_at, $escalated_at, $escalation_level,
         $resolved_at, $closed_at, $lock_version, $created_at;
 
+    // When set, list queries only return tickets created by this user (customers).
+    private ?int $only_created_by = null;
+
+    public function setOnlyCreatedBy(?int $only_created_by)
+    {
+        $this->only_created_by = $only_created_by;
+        return $this;
+    }
+
     public function setId($id)
     {
         $this->id = $id;
@@ -248,6 +257,7 @@ class TicketRepositoryV1
 
         $row = DB::table('tickets')
             ->whereNull('deleted_at')
+            ->when($this->only_created_by, fn ($query, $userId) => $query->where('created_by', $userId))
             ->selectRaw(
                 'SUM(CASE WHEN status IN (' . implode(',', array_fill(0, count($active), '?')) . ') THEN 1 ELSE 0 END) AS active_count, COUNT(*) AS total_count',
                 $active
@@ -266,8 +276,10 @@ class TicketRepositoryV1
             ->join('users as u', 'u.id', '=', 't.created_by')
             ->leftJoin('users as a', 'a.id', '=', 't.assigned_to')
             ->whereNull('t.deleted_at')
+            ->when($this->only_created_by, fn ($query, $userId) => $query->where('t.created_by', $userId))
             ->select(
                 't.id',
+                't.created_by',
                 't.ticket_number',
                 't.subject',
                 't.priority',

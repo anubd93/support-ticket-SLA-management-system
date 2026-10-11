@@ -8,7 +8,9 @@
         <h1>Tickets</h1>
     </div>
     <div class="actions">
-        <a href="{{ route('tickets.create') }}" class="btn btn-primary"><i class="icon-plus"></i>New ticket</a>
+        @can('ticket.create')
+            <a href="{{ route('tickets.create') }}" class="btn btn-primary"><i class="icon-plus"></i>New ticket</a>
+        @endcan
     </div>
 </div>
 

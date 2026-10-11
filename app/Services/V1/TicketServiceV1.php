@@ -8,6 +8,7 @@ use App\Enums\V1\TicketPriority;
 use App\Enums\V1\TicketSource;
 use App\Enums\V1\TicketStatus;
 use App\Exceptions\V1\TicketException;
+use App\Models\User;
 use App\Models\V1\Ticket;
 use App\Repositories\V1\CategoryRepositoryV1;
 use App\Repositories\V1\TicketActivityRepositoryV1;
@@ -165,19 +166,29 @@ class TicketServiceV1
         });
     }
 
-    public function getActiveTickets(): LengthAwarePaginator
+    public function getActiveTickets(User $user): LengthAwarePaginator
     {
-        return $this->ticketRepositoryV1->getActive(config('tickets.per_page'));
+        return $this->scopedTo($user)->getActive(config('tickets.per_page'));
     }
 
-    public function getFinishedTickets(): LengthAwarePaginator
+    public function getFinishedTickets(User $user): LengthAwarePaginator
     {
-        return $this->ticketRepositoryV1->getFinished(config('tickets.per_page'));
+        return $this->scopedTo($user)->getFinished(config('tickets.per_page'));
     }
 
-    public function getTabCounts(): array
+    public function getTabCounts(User $user): array
     {
-        return $this->ticketRepositoryV1->countByGroup();
+        return $this->scopedTo($user)->countByGroup();
+    }
+
+    /**
+     * Users without ticket.view_all (customers) only see tickets they created.
+     */
+    private function scopedTo(User $user): TicketRepositoryV1
+    {
+        return $this->ticketRepositoryV1->setOnlyCreatedBy(
+            $user->hasPermission('ticket.view_all') ? null : $user->id
+        );
     }
 
     public function findTicket(int $id): ?object

@@ -13,7 +13,7 @@ Route::get('login', [AuthControllerV1::class, 'getLogin'])->name('login');
 Route::post('login', [AuthControllerV1::class, 'login']);
 Route::get('logout', [AuthControllerV1::class, 'logout'])->name('logout');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
     Route::get('dashboard', [DashboardControllerV1::class, 'index'])->name('dashboard');
 
     Route::prefix('tickets')->group(function () {

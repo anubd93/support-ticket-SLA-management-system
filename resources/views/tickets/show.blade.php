@@ -28,9 +28,9 @@
     </div>
     <div class="actions">
         <a href="{{ $status->isActive() ? route('tickets.index') : route('tickets.resolved') }}" class="btn"><i class="icon-arrow-left"></i>Back</a>
-        @if ($status !== \App\Enums\V1\TicketStatus::Closed)
+        @can('update', [\App\Models\V1\Ticket::class, $ticket])
             <a href="{{ route('tickets.edit', $ticket->id) }}" class="btn"><i class="icon-pencil"></i>Edit</a>
-        @endif
+        @endcan
     </div>
 </div>
 
@@ -72,6 +72,7 @@
     </div>
 
     <div class="stack">
+        @can('changeStatus', [\App\Models\V1\Ticket::class, $ticket])
         <div class="card">
             <div class="card-head"><h2>Status</h2></div>
             <div class="card-body">
@@ -99,6 +100,7 @@
                 @endif
             </div>
         </div>
+        @endcan
 
         <div class="card">
             <div class="card-head"><h2>SLA</h2><span class="ml-auto">@include('tickets.partials.sla-badge', ['ticket' => $ticket])</span></div>
