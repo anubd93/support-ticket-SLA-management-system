@@ -61,11 +61,6 @@ class PermissionSeeder extends Seeder
                 'group' => 'administration'
             ],
             [
-                'name' => 'settings.manage',
-                'display_name' => 'Manage SLA, business hours, holidays and categories',
-                'group' => 'administration'
-            ],
-            [
                 'name' => 'import.run',
                 'display_name' => 'Import tickets from CSV',
                 'group' => 'administration'

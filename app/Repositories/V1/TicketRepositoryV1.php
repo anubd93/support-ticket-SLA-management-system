@@ -28,8 +28,7 @@ class TicketRepositoryV1
     }
     
     private ?int $only_assigned_to = null;
-
-    // Validated search/filter values (TicketFilterRequestV1), applied to every list query.
+    
     private array $filters = [];
 
     public function setFilters(array $filters)
@@ -271,6 +270,21 @@ class TicketRepositoryV1
         $ticket->update(['first_responded_at' => $this->first_responded_at]);
 
         return $ticket;
+    }
+    
+    public function getActiveIdsAssignedTo(int $agentId): array
+    {
+        return DB::table('tickets')
+            ->where('assigned_to', $agentId)
+            ->whereIn('status', TicketStatus::active())
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->all();
+    }
+
+    public function unassignMany(array $ids): int
+    {
+        return Ticket::whereKey($ids)->update(['assigned_to' => null, 'assigned_at' => null]);
     }
 
     public function markInProgress(Ticket $ticket): Ticket

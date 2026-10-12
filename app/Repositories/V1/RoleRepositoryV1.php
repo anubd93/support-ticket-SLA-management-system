@@ -2,6 +2,9 @@
 
 namespace App\Repositories\V1;
 
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
 class RoleRepositoryV1
 {
     private $id, $name, $display_name, $description, $created_at;
@@ -34,5 +37,13 @@ class RoleRepositoryV1
     {
         $this->created_at = $created_at;
         return $this;
+    }
+
+    public function getAll(): Collection
+    {
+        return DB::table('roles')
+            ->whereNull('deleted_at')
+            ->orderBy('id')
+            ->get(['id', 'name', 'display_name']);
     }
 }

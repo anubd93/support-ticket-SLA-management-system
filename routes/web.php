@@ -8,6 +8,7 @@ use App\Http\Controllers\V1\NotificationControllerV1;
 use App\Http\Controllers\V1\TicketAssignmentControllerV1;
 use App\Http\Controllers\V1\TicketControllerV1;
 use App\Http\Controllers\V1\TicketReplyControllerV1;
+use App\Http\Controllers\V1\UserControllerV1;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -42,6 +43,14 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/read-all', [NotificationControllerV1::class, 'readAll'])->name('notifications.read_all');
     });
     
+    Route::prefix('users')->middleware('can:user.manage')->group(function () {
+        Route::get('/', [UserControllerV1::class, 'index'])->name('users.index');
+        Route::get('/create', [UserControllerV1::class, 'create'])->name('users.create');
+        Route::post('/', [UserControllerV1::class, 'store'])->name('users.store');
+        Route::get('/{id}/edit', [UserControllerV1::class, 'edit'])->whereNumber('id')->name('users.edit');
+        Route::put('/{id}', [UserControllerV1::class, 'update'])->whereNumber('id')->name('users.update');
+    });
+
     Route::prefix('imports')->middleware('can:import.run')->group(function () {
         Route::get('/', [ImportControllerV1::class, 'index'])->name('imports.index');
         Route::get('/create', [ImportControllerV1::class, 'create'])->name('imports.create');

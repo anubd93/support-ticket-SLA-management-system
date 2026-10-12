@@ -10,8 +10,7 @@ class AttachmentRepositoryV1
 {
     private $id, $ticket_id, $ticket_reply_id, $uploaded_by, $disk, $path,
         $original_name, $mime_type, $size, $created_at;
-
-    // false = customers: files on internal notes are filtered out in SQL.
+        
     private bool $include_internal = true;
 
     public function setIncludeInternal(bool $include_internal)

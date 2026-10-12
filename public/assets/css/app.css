@@ -639,6 +639,10 @@ code {
     text-align: right;
 }
 
+/* .table th sets text-align: left, which would beat the plain .center / .right helpers */
+.table th.center { text-align: center; }
+.table th.right { text-align: right; }
+
 .ticket-link {
     display: block;
     color: var(--text);

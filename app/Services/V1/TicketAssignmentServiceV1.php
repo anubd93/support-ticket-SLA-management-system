@@ -148,6 +148,25 @@ class TicketAssignmentServiceV1
             return $ticket;
         });
     }
+    
+    public function unassignAllFromAgent(int $agentId, int $actorId): int
+    {
+        $ticketIds = $this->ticketRepositoryV1->getActiveIdsAssignedTo($agentId);
+
+        if (! $ticketIds) {
+            return 0;
+        }
+
+        $this->ticketRepositoryV1->unassignMany($ticketIds);
+
+        $agentName = $this->userRepositoryV1->setId($agentId)->getNameById();
+
+        foreach ($ticketIds as $ticketId) {
+            $this->logActivity($ticketId, $actorId, ActivityType::Unassigned, ['agent_id' => $agentId, 'agent' => $agentName], null);
+        }
+
+        return count($ticketIds);
+    }
 
     public function findTicket(int $id): ?object
     {

@@ -22,15 +22,7 @@
 
         @can('user.manage')
             <div class="nav-label">People</div>
-            <a href="#" class="nav-item"><i class="icon-users"></i>Users</a>
-        @endcan
-
-        @can('settings.manage')
-            <div class="nav-label">Configuration</div>
-            <a href="#" class="nav-item"><i class="icon-timer"></i>SLA policies</a>
-            <a href="#" class="nav-item"><i class="icon-clock"></i>Business hours</a>
-            <a href="#" class="nav-item"><i class="icon-calendar-x"></i>Holidays</a>
-            <a href="#" class="nav-item"><i class="icon-tag"></i>Categories</a>
+            <a href="{{ route('users.index') }}" class="nav-item {{ request()->routeIs('users.*') ? 'active' : '' }}"><i class="icon-users"></i>Users</a>
         @endcan
 
         @can('import.run')

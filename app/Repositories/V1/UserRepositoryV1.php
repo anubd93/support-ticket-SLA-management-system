@@ -5,6 +5,7 @@ namespace App\Repositories\V1;
 use App\Enums\V1\TicketStatus;
 use App\Enums\V1\UserRole;
 use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -73,6 +74,14 @@ class UserRepositoryV1
     public function setCreatedAt($created_at)
     {
         $this->created_at = $created_at;
+        return $this;
+    }
+
+    private array $filters = [];
+
+    public function setFilters(array $filters)
+    {
+        $this->filters = array_filter($filters, fn ($value) => $value !== null && $value !== '');
         return $this;
     }
 
@@ -201,5 +210,107 @@ class UserRepositoryV1
             ->where('r.name', UserRole::Agent)
             ->where('u.is_active', true)
             ->whereNull('u.deleted_at');
+    }
+    
+    public function paginateUsers(int $perPage): LengthAwarePaginator
+    {
+        $filters = $this->filters;
+
+        $openTickets = DB::table('tickets')
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('tickets.assigned_to', 'u.id')
+            ->whereIn('tickets.status', TicketStatus::active())
+            ->whereNull('tickets.deleted_at');
+
+        return DB::table('users as u')
+            ->join('roles as r', 'r.id', '=', 'u.role_id')
+            ->whereNull('u.deleted_at')
+            ->when($filters['keyword'] ?? null, function ($query, $keyword) {
+                $prefix = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $keyword) . '%';
+                $query->where(fn ($query) => $query->where('u.name', 'like', $prefix)->orWhere('u.email', 'like', $prefix));
+            })
+            ->when($filters['role'] ?? null, fn ($query, $role) => $query->where('r.name', $role))
+            ->select('u.id', 'u.name', 'u.email', 'u.is_active', 'u.is_available', 'u.created_at', 'r.name as role', 'r.display_name as role_name')
+            ->selectSub($openTickets, 'open_tickets')
+            ->orderBy('u.name')
+            ->orderBy('u.id')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+    
+    public function getCategoryNamesByUserIds(array $userIds): array
+    {
+        if (! $userIds) {
+            return [];
+        }
+
+        return DB::table('category_user as cu')
+            ->join('categories as c', 'c.id', '=', 'cu.category_id')
+            ->whereIn('cu.user_id', $userIds)
+            ->whereNull('cu.deleted_at')
+            ->orderBy('c.name')
+            ->get(['cu.user_id', 'c.name'])
+            ->groupBy('user_id')
+            ->map(fn ($rows) => $rows->pluck('name')->all())
+            ->all();
+    }
+
+    public function findById(): ?object
+    {
+        return DB::table('users as u')
+            ->join('roles as r', 'r.id', '=', 'u.role_id')
+            ->where('u.id', $this->id)
+            ->whereNull('u.deleted_at')
+            ->select('u.id', 'u.role_id', 'u.name', 'u.email', 'u.is_active', 'u.is_available', 'r.name as role')
+            ->first();
+    }
+
+    public function getCategoryIds(): array
+    {
+        return DB::table('category_user')
+            ->where('user_id', $this->id)
+            ->whereNull('deleted_at')
+            ->pluck('category_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    public function store(): User
+    {
+        return User::create([
+            'role_id' => $this->role_id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'password' => $this->password,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+    }
+
+    public function findModel(): User
+    {
+        return User::findOrFail($this->id);
+    }
+    
+    public function update(User $user): User
+    {
+        $user->fill([
+            'role_id' => $this->role_id,
+            'name' => $this->name,
+            'email' => $this->email,
+        ]);
+
+        if ($this->password) {
+            $user->password = $this->password;
+        }
+
+        $user->save();
+
+        return $user;
+    }
+
+    public function syncCategories(User $user, array $categoryIds): void
+    {
+        $user->categories()->sync($categoryIds);
     }
 }

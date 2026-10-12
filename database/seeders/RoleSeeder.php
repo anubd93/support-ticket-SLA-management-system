@@ -19,7 +19,7 @@ class RoleSeeder extends Seeder
                 'permissions' => [
                     'ticket.view_all', 'ticket.update', 'ticket.change_status',
                     'ticket.assign', 'ticket.reply', 'ticket.internal_note',
-                    'user.manage', 'settings.manage', 'import.run',
+                    'user.manage', 'import.run',
                 ],
             ],
             [
