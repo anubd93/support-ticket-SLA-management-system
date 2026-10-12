@@ -1,6 +1,12 @@
 <header class="topbar">
     <button type="button" class="icon-btn mobile-only" data-nav-toggle aria-label="Open menu"><i class="icon-menu"></i></button>
 
+    {{-- Quick search from any page: opens the ticket list filtered by ID or keyword --}}
+    <form method="GET" action="{{ route('tickets.index') }}" class="input-icon" style="flex:0 1 300px">
+        <i class="icon-search"></i>
+        <input type="search" name="keyword" class="input" maxlength="100" placeholder="Search ticket ID or keyword" value="{{ request()->routeIs('tickets.*') ? request('keyword') : '' }}">
+    </form>
+
     <div class="topbar-right">
         {{-- $bellNotifications / $bellUnreadCount come from the view composer in AppServiceProvider --}}
         <div class="dropdown">

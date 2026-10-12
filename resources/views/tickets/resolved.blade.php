@@ -15,6 +15,7 @@
 </div>
 
 @include('tickets.partials.tabs')
+@include('tickets.partials.filters')
 
 <div class="card table-wrap">
     <table class="table">
@@ -37,7 +38,11 @@
                 <td class="w-actions"><a href="{{ route('tickets.show', $ticket->id) }}" class="icon-btn" aria-label="View"><i class="icon-eye"></i></a></td>
             </tr>
         @empty
-            <tr><td colspan="8" class="center muted">No resolved or closed tickets yet.</td></tr>
+            @if (collect($filters)->filter()->isNotEmpty())
+                <tr><td colspan="8" class="center muted">No tickets match your filters. <a href="{{ url()->current() }}">Clear filters</a></td></tr>
+            @else
+                <tr><td colspan="8" class="center muted">No resolved or closed tickets yet.</td></tr>
+            @endif
         @endforelse
         </tbody>
     </table>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\V1\StoreTicketRequestV1;
+use App\Http\Requests\V1\TicketFilterRequestV1;
 use App\Http\Requests\V1\UpdateTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketStatusRequestV1;
 use App\Models\V1\Ticket;
@@ -26,39 +27,55 @@ class TicketControllerV1 extends Controller
                                 private readonly AttachmentServiceV1 $attachmentServiceV1
     ) {}
 
-    public function index(Request $request): View
+    public function index(TicketFilterRequestV1 $request): View
     {
+        $filters = $request->validated();
+
         return view('tickets.index', [
-            'tickets' => $this->ticketServiceV1->getActiveTickets($request->user()),
+            'tickets' => $this->ticketServiceV1->getActiveTickets($request->user(), $filters),
             'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+            'filters' => $filters,
+            'filterOptions' => $this->ticketServiceV1->getFilterOptions($request->user(), 'active'),
         ]);
     }
 
-    public function unassigned(Request $request): View
+    public function unassigned(TicketFilterRequestV1 $request): View
     {
         abort_unless(Gate::any(['ticket.claim', 'ticket.assign']), Response::HTTP_FORBIDDEN);
 
+        $filters = $request->validated();
+
         return view('tickets.index', [
-            'tickets' => $this->ticketServiceV1->getUnassignedTickets($request->user()),
+            'tickets' => $this->ticketServiceV1->getUnassignedTickets($request->user(), $filters),
             'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+            'filters' => $filters,
+            'filterOptions' => $this->ticketServiceV1->getFilterOptions($request->user(), 'unassigned'),
         ]);
     }
 
-    public function queue(Request $request): View
+    public function queue(TicketFilterRequestV1 $request): View
     {
         Gate::authorize('ticket.claim');
 
+        $filters = $request->validated();
+
         return view('tickets.index', [
-            'tickets' => $this->ticketServiceV1->getMyQueue($request->user()),
+            'tickets' => $this->ticketServiceV1->getMyQueue($request->user(), $filters),
             'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+            'filters' => $filters,
+            'filterOptions' => $this->ticketServiceV1->getFilterOptions($request->user(), 'queue'),
         ]);
     }
 
-    public function resolved(Request $request): View
+    public function resolved(TicketFilterRequestV1 $request): View
     {
+        $filters = $request->validated();
+
         return view('tickets.resolved', [
-            'tickets' => $this->ticketServiceV1->getFinishedTickets($request->user()),
+            'tickets' => $this->ticketServiceV1->getFinishedTickets($request->user(), $filters),
             'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+            'filters' => $filters,
+            'filterOptions' => $this->ticketServiceV1->getFilterOptions($request->user(), 'finished'),
         ]);
     }
 

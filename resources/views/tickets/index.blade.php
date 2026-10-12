@@ -19,6 +19,7 @@
 </div>
 
 @include('tickets.partials.tabs')
+@include('tickets.partials.filters')
 
 <div class="card table-wrap">
     <table class="table">
@@ -54,7 +55,9 @@
                 </td>
             </tr>
         @empty
-            @if (request()->routeIs('tickets.unassigned'))
+            @if (collect($filters)->filter()->isNotEmpty())
+                <tr><td colspan="8" class="center muted">No tickets match your filters. <a href="{{ url()->current() }}">Clear filters</a></td></tr>
+            @elseif (request()->routeIs('tickets.unassigned'))
                 <tr><td colspan="8" class="center muted">Every active ticket has an agent.</td></tr>
             @elseif (request()->routeIs('tickets.queue'))
                 <tr><td colspan="8" class="center muted">No tickets assigned to you. Pick one from <a href="{{ route('tickets.unassigned') }}">Unassigned</a>.</td></tr>
@@ -71,7 +74,7 @@
 
 @push('scripts')
 <script>
-    // POST /tickets/{id}/claim -> 200 { redirect } | 403/422 { message } when another agent was faster
+    
     document.querySelectorAll('[data-claim]').forEach(function (button) {
         button.addEventListener('click', async function () {
             button.disabled = true;

@@ -72,8 +72,7 @@ class TicketServiceV1
             ]));
 
             $this->ticketAssignmentServiceV1->autoAssign($ticket);
-
-            // Queued notifications; dispatched only after this transaction commits.
+            
             TicketCreated::dispatch($ticket->id, $userId);
 
             return $ticket;
@@ -195,24 +194,24 @@ class TicketServiceV1
         });
     }
 
-    public function getActiveTickets(User $user): LengthAwarePaginator
+    public function getActiveTickets(User $user, array $filters = []): LengthAwarePaginator
     {
-        return $this->scopedTo($user)->getActive(config('tickets.per_page'));
+        return $this->scopedTo($user, null, $filters)->getActive(config('tickets.per_page'));
     }
 
-    public function getFinishedTickets(User $user): LengthAwarePaginator
+    public function getFinishedTickets(User $user, array $filters = []): LengthAwarePaginator
     {
-        return $this->scopedTo($user)->getFinished(config('tickets.per_page'));
+        return $this->scopedTo($user, null, $filters)->getFinished(config('tickets.per_page'));
     }
 
-    public function getUnassignedTickets(User $user): LengthAwarePaginator
+    public function getUnassignedTickets(User $user, array $filters = []): LengthAwarePaginator
     {
-        return $this->scopedTo($user)->getUnassigned(config('tickets.per_page'));
+        return $this->scopedTo($user, null, $filters)->getUnassigned(config('tickets.per_page'));
     }
 
-    public function getMyQueue(User $user): LengthAwarePaginator
+    public function getMyQueue(User $user, array $filters = []): LengthAwarePaginator
     {
-        return $this->scopedTo($user, $user->id)->getActive(config('tickets.per_page'));
+        return $this->scopedTo($user, $user->id, $filters)->getActive(config('tickets.per_page'));
     }
 
     public function getTabCounts(User $user): array
@@ -220,11 +219,39 @@ class TicketServiceV1
         return $this->scopedTo($user)->countByGroup();
     }
 
-    private function scopedTo(User $user, ?int $assignedTo = null): TicketRepositoryV1
+    private function scopedTo(User $user, ?int $assignedTo = null, array $filters = []): TicketRepositoryV1
     {
+        $isStaff = $user->hasPermission('ticket.view_all');
+        
+        if (! $isStaff) {
+            unset($filters['agent_id'], $filters['customer']);
+        }
+
         return $this->ticketRepositoryV1
-            ->setOnlyCreatedBy($user->hasPermission('ticket.view_all') ? null : $user->id)
-            ->setOnlyAssignedTo($assignedTo);
+            ->setOnlyCreatedBy($isStaff ? null : $user->id)
+            ->setOnlyAssignedTo($assignedTo)
+            ->setFilters($filters);
+    }
+    
+    public function getFilterOptions(User $user, string $list): array
+    {
+        $finished = $list === 'finished';
+        $statuses = $finished ? TicketStatus::finished() : TicketStatus::active();
+        $isStaff = $user->hasPermission('ticket.view_all');
+
+        $sla = $finished
+            ? ['met' => 'SLA met', 'missed' => 'SLA missed', 'escalated' => 'Escalated']
+            : ['within' => 'Within SLA', 'approaching' => 'Approaching', 'breached' => 'Breached', 'paused' => 'Paused', 'escalated' => 'Escalated'];
+
+        return [
+            'statuses' => collect($statuses)->mapWithKeys(fn (TicketStatus $status) => [$status->value => $status->label()])->all(),
+            'priorities' => collect(TicketPriority::cases())->mapWithKeys(fn (TicketPriority $priority) => [$priority->value => $priority->label()])->all(),
+            'categories' => $this->categoryRepositoryV1->getActive(),
+            // The agent filter makes no sense on Unassigned or My queue.
+            'agents' => $isStaff && in_array($list, ['active', 'finished'], true) ? $this->ticketAssignmentServiceV1->getAgentOptions() : null,
+            'showCustomer' => $isStaff,
+            'sla' => $sla,
+        ];
     }
 
     public function findTicket(int $id): ?object
@@ -293,7 +320,7 @@ class TicketServiceV1
             'slaHours' => $this->slaCalculatorServiceV1->resolutionHours(),
         ];
     }
-    
+
     private function resetEscalationIfDeadlinesMoved(Ticket $ticket): void
     {
         $warnAgain = $ticket->sla_warning_sent_at && $ticket->sla_warning_at?->isFuture();

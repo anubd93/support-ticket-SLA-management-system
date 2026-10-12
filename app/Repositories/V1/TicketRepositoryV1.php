@@ -26,6 +26,15 @@ class TicketRepositoryV1
     
     private ?int $only_assigned_to = null;
 
+    // Validated search/filter values (TicketFilterRequestV1), applied to every list query.
+    private array $filters = [];
+
+    public function setFilters(array $filters)
+    {
+        $this->filters = array_filter($filters, fn ($value) => $value !== null && $value !== '');
+        return $this;
+    }
+
     public function setOnlyAssignedTo(?int $only_assigned_to)
     {
         $this->only_assigned_to = $only_assigned_to;
@@ -267,17 +276,12 @@ class TicketRepositoryV1
         return $ticket;
     }
 
-    /**
-     * Atomic, like the concurrent claim: only the run that flips sla_breached_at from NULL wins (returns 1).
-     * A breached ticket also counts as warned, so it never gets a late "approaching" message.
-     */
     public function markBreached(): int
     {
         return Ticket::whereKey($this->id)
             ->whereNull('sla_breached_at')
             ->update([
                 'sla_breached_at' => $this->sla_breached_at,
-                // MySQL applies SET assignments left to right, so sla_breached_at here is already the new value.
                 'sla_warning_sent_at' => DB::raw('COALESCE(sla_warning_sent_at, sla_breached_at)'),
                 'escalated_at' => $this->escalated_at,
                 'escalation_level' => $this->escalation_level,
@@ -296,9 +300,6 @@ class TicketRepositoryV1
             ]);
     }
 
-    /**
-     * Used when the deadlines move later, so a stage can fire again.
-     */
     public function updateEscalation(Ticket $ticket): Ticket
     {
         $ticket->update([
@@ -310,10 +311,6 @@ class TicketRepositoryV1
         return $ticket;
     }
 
-    /**
-     * Running tickets (paused ones excluded) whose deadline has passed and that were not escalated for it yet.
-     * Uses the (status, sla_due_at) index. chunkById keeps memory flat however many match.
-     */
     public function chunkDueForBreach(int $size, callable $callback): void
     {
         $this->escalationQuery()
@@ -353,7 +350,8 @@ class TicketRepositoryV1
             ->whereIn('t.status', TicketStatus::active())
             ->orderByDesc('t.created_at')
             ->orderByDesc('t.id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function getFinished(int $perPage): LengthAwarePaginator
@@ -362,7 +360,8 @@ class TicketRepositoryV1
             ->whereIn('t.status', TicketStatus::finished())
             ->orderByRaw('COALESCE(t.closed_at, t.resolved_at) DESC')
             ->orderByDesc('t.id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function getUnassigned(int $perPage): LengthAwarePaginator
@@ -372,7 +371,8 @@ class TicketRepositoryV1
             ->whereIn('t.status', TicketStatus::active())
             ->orderBy('t.sla_due_at')
             ->orderBy('t.id')
-            ->paginate($perPage);
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function countByGroup(): array
@@ -409,6 +409,7 @@ class TicketRepositoryV1
             ->whereNull('t.deleted_at')
             ->when($this->only_created_by, fn ($query, $userId) => $query->where('t.created_by', $userId))
             ->when($this->only_assigned_to, fn ($query, $agentId) => $query->where('t.assigned_to', $agentId))
+            ->tap(fn ($query) => $this->applyFilters($query))
             ->select(
                 't.id',
                 't.created_by',
@@ -431,5 +432,96 @@ class TicketRepositoryV1
                 'u.email as creator_email',
                 'a.name as assignee_name',
             );
+    }
+
+    private function applyFilters(Builder $query): void
+    {
+        $filters = $this->filters;
+
+        if (isset($filters['keyword'])) {
+            $this->applyKeyword($query, $filters['keyword']);
+        }
+
+        $query
+            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('t.status', $status))
+            ->when($filters['priority'] ?? null, fn ($query, $priority) => $query->where('t.priority', $priority))
+            ->when($filters['category_id'] ?? null, fn ($query, $categoryId) => $query->where('t.category_id', $categoryId))
+            ->when($filters['agent_id'] ?? null, fn ($query, $agentId) => $agentId === 'none'
+                ? $query->whereNull('t.assigned_to')
+                : $query->where('t.assigned_to', $agentId))
+            ->when($filters['customer'] ?? null, function ($query, $customer) {
+                $prefix = $this->escapeLike($customer) . '%';
+                $query->where(fn ($query) => $query->where('u.name', 'like', $prefix)->orWhere('u.email', 'like', $prefix));
+            })
+            ->when($filters['from'] ?? null, fn ($query, $from) => $query->where('t.created_at', '>=', $from . ' 00:00:00'))
+            ->when($filters['to'] ?? null, fn ($query, $to) => $query->where('t.created_at', '<', date('Y-m-d', strtotime($to . ' +1 day'))));
+
+        if (isset($filters['sla'])) {
+            $this->applySla($query, $filters['sla']);
+        }
+    }
+
+    private function applyKeyword(Builder $query, string $term): void
+    {
+        $term = trim($term);
+
+        if (preg_match('/^([A-Za-z]+)-(\d{4})-(\d+)$/', $term, $parts)) {
+            $query->where('t.ticket_number', strtoupper($parts[1]) . '-' . $parts[2] . '-' . $this->padNumber($parts[3]));
+
+            return;
+        }
+
+        if (ctype_digit($term)) {
+            $query->where('t.ticket_number', 'like', '%-' . $this->padNumber($term));
+
+            return;
+        }
+
+        $words = preg_split('/\s+/', preg_replace('/[+\-<>()~*"@]+/', ' ', $term), -1, PREG_SPLIT_NO_EMPTY);
+        
+        $indexable = array_filter($words, fn ($word) => mb_strlen($word) >= 3);
+
+        if (! $indexable) {
+            $query->where('t.subject', 'like', $this->escapeLike($term) . '%');
+
+            return;
+        }
+        
+        $query->whereFullText(
+            ['t.subject', 't.description'],
+            implode(' ', array_map(fn ($word) => '+' . $word . '*', $indexable)),
+            ['mode' => 'boolean']
+        );
+    }
+
+    private function applySla(Builder $query, string $sla): void
+    {
+        $now = now();
+        $running = [TicketStatus::Open, TicketStatus::InProgress];
+
+        match ($sla) {
+            'breached' => $query->whereIn('t.status', $running)->where('t.sla_due_at', '<', $now),
+            'approaching' => $query->whereIn('t.status', $running)
+                ->where('t.sla_warning_at', '<=', $now)
+                ->where('t.sla_due_at', '>=', $now),
+            'within' => $query->whereIn('t.status', $running)
+                ->where('t.sla_due_at', '>=', $now)
+                ->where(fn ($query) => $query->whereNull('t.sla_warning_at')->orWhere('t.sla_warning_at', '>', $now)),
+            'paused' => $query->where('t.status', TicketStatus::WaitingForCustomer),
+            'escalated' => $query->where('t.escalation_level', '>', 0),
+            'met' => $query->whereRaw('COALESCE(t.resolved_at, t.closed_at) <= t.sla_due_at'),
+            'missed' => $query->whereRaw('COALESCE(t.resolved_at, t.closed_at) > t.sla_due_at'),
+            default => null,
+        };
+    }
+
+    private function padNumber(string $digits): string
+    {
+        return str_pad(ltrim($digits, '0') ?: '0', config('tickets.number_padding'), '0', STR_PAD_LEFT);
+    }
+
+    private function escapeLike(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
     }
 }
