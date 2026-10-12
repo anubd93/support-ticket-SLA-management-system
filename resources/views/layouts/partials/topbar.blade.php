@@ -46,8 +46,8 @@
                 <i class="icon-chevron-down"></i>
             </button>
             <div class="menu">
-                <a href="#" class="menu-item"><i class="icon-user"></i>Profile</a>
-                <div class="menu-sep"></div>
+                {{-- <a href="#" class="menu-item"><i class="icon-user"></i>Profile</a> --}}
+                {{-- <div class="menu-sep"></div> --}}
                 <a href="{{ route('logout') }}" class="menu-item"><i class="icon-log-out"></i>Sign out</a>
             </div>
         </div>
