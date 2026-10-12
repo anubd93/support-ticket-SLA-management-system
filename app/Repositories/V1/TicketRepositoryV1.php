@@ -17,7 +17,7 @@ class TicketRepositoryV1
         $external_reference, $category_id, $created_by, $assigned_to, $assigned_at,
         $sla_due_at, $sla_warning_at, $sla_paused_at, $sla_paused_minutes, $first_responded_at,
         $sla_warning_sent_at, $sla_breached_at, $escalated_at, $escalation_level,
-        $resolved_at, $closed_at, $lock_version, $created_at;
+        $resolved_at, $closed_at, $created_at;
 
     private ?int $only_created_by = null;
 
@@ -181,12 +181,6 @@ class TicketRepositoryV1
         return $this;
     }
 
-    public function setLockVersion($lock_version)
-    {
-        $this->lock_version = $lock_version;
-        return $this;
-    }
-
     public function setCreatedAt($created_at)
     {
         $this->created_at = $created_at;
@@ -300,7 +294,7 @@ class TicketRepositoryV1
             ->whereNull('sla_breached_at')
             ->update([
                 'sla_breached_at' => $this->sla_breached_at,
-                'sla_warning_sent_at' => DB::raw('COALESCE(sla_warning_sent_at, sla_breached_at)'),
+                'sla_warning_sent_at' => $this->sla_warning_sent_at,
                 'escalated_at' => $this->escalated_at,
                 'escalation_level' => $this->escalation_level,
             ]);
@@ -351,7 +345,7 @@ class TicketRepositoryV1
         return DB::table('tickets')
             ->whereIn('status', [TicketStatus::Open, TicketStatus::InProgress])
             ->whereNull('deleted_at')
-            ->select('id', 'sla_due_at', 'sla_warning_at');
+            ->select('id', 'sla_due_at', 'sla_warning_at', 'sla_warning_sent_at');
     }
     
     public function getExistingExternalReferences(array $references): array

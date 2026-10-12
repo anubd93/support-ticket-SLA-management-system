@@ -50,6 +50,7 @@ class EscalationServiceV1
             $won = $this->ticketRepositoryV1
                 ->setId($ticket->id)
                 ->setSlaBreachedAt($now)
+                ->setSlaWarningSentAt($ticket->sla_warning_sent_at ?? $now)
                 ->setEscalatedAt($now)
                 ->setEscalationLevel(self::LEVEL_BREACHED)
                 ->markBreached();

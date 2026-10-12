@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 class ImportRepositoryV1
 {
     private $id, $user_id, $original_name, $file_path, $status, $total_rows,
-        $processed_rows, $success_rows, $failed_rows, $batch_id, $error_message,
+        $processed_rows, $success_rows, $failed_rows, $error_message,
         $started_at, $completed_at, $created_at;
 
     public function setId($id)
@@ -65,12 +65,6 @@ class ImportRepositoryV1
     public function setFailedRows($failed_rows)
     {
         $this->failed_rows = $failed_rows;
-        return $this;
-    }
-
-    public function setBatchId($batch_id)
-    {
-        $this->batch_id = $batch_id;
         return $this;
     }
 

@@ -15,25 +15,21 @@ class SlaPolicySeeder extends Seeder
             [
                 'priority' => TicketPriority::Low->value,
                 'resolution_minutes' => 48 * 60,
-                'first_response_minutes' => 8 * 60,
                 'warning_threshold_percent' => 20
             ],
             [
                 'priority' => TicketPriority::Medium->value,
                 'resolution_minutes' => 24 * 60,
-                'first_response_minutes' => 4 * 60,
                 'warning_threshold_percent' => 20
             ],
             [
                 'priority' => TicketPriority::High->value,
                 'resolution_minutes' => 8 * 60,
-                'first_response_minutes' => 60,
                 'warning_threshold_percent' => 25
             ],
             [
                 'priority' => TicketPriority::Critical->value,
                 'resolution_minutes' => 2 * 60,
-                'first_response_minutes' => 30,
                 'warning_threshold_percent' => 25
             ],
         ];

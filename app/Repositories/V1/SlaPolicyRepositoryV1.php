@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class SlaPolicyRepositoryV1
 {
-    private $id, $priority, $resolution_minutes, $first_response_minutes,
+    private $id, $priority, $resolution_minutes,
         $warning_threshold_percent, $is_active, $created_at;
 
     public function setId($id)
@@ -25,12 +25,6 @@ class SlaPolicyRepositoryV1
     public function setResolutionMinutes($resolution_minutes)
     {
         $this->resolution_minutes = $resolution_minutes;
-        return $this;
-    }
-
-    public function setFirstResponseMinutes($first_response_minutes)
-    {
-        $this->first_response_minutes = $first_response_minutes;
         return $this;
     }
 
@@ -64,7 +58,7 @@ class SlaPolicyRepositoryV1
     public function getPolicyByPriority(): ?object
     {
         return DB::table('sla_policies')
-            ->select('priority', 'resolution_minutes', 'first_response_minutes', 'warning_threshold_percent')
+            ->select('priority', 'resolution_minutes', 'warning_threshold_percent')
             ->where('priority', $this->priority)
             ->where('is_active', true)
             ->whereNull('deleted_at')
