@@ -17,7 +17,7 @@ class RoleSeeder extends Seeder
                 'display_name' => 'Administrator',
                 'description' => 'Full administrative access',
                 'permissions' => [
-                    'ticket.view_all', 'ticket.create', 'ticket.update', 'ticket.change_status',
+                    'ticket.view_all', 'ticket.update', 'ticket.change_status',
                     'ticket.assign', 'ticket.reply', 'ticket.internal_note',
                     'user.manage', 'settings.manage', 'import.run',
                 ],
@@ -27,7 +27,7 @@ class RoleSeeder extends Seeder
                 'display_name' => 'Support Agent',
                 'description' => 'Handles and resolves tickets',
                 'permissions' => [
-                    'ticket.view_all', 'ticket.create', 'ticket.update', 'ticket.change_status',
+                    'ticket.view_all', 'ticket.update', 'ticket.change_status',
                     'ticket.claim', 'ticket.reply', 'ticket.internal_note',
                 ],
             ],

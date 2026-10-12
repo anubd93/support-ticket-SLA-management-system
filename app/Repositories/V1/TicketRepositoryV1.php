@@ -253,6 +253,13 @@ class TicketRepositoryV1
             ]);
     }
 
+    public function markFirstResponse(Ticket $ticket): Ticket
+    {
+        $ticket->update(['first_responded_at' => $this->first_responded_at]);
+
+        return $ticket;
+    }
+
     public function markInProgress(Ticket $ticket): Ticket
     {
         $ticket->update(['status' => TicketStatus::InProgress]);

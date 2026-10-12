@@ -181,9 +181,6 @@ class TicketServiceV1
         return $this->scopedTo($user)->getUnassigned(config('tickets.per_page'));
     }
 
-    /**
-     * "My queue": active tickets assigned to this agent.
-     */
     public function getMyQueue(User $user): LengthAwarePaginator
     {
         return $this->scopedTo($user, $user->id)->getActive(config('tickets.per_page'));
@@ -206,9 +203,12 @@ class TicketServiceV1
         return $this->ticketRepositoryV1->setId($id)->findById();
     }
 
-    public function getActivities(int $ticketId)
+    public function getActivities(int $ticketId, User $user)
     {
-        return $this->ticketActivityRepositoryV1->setTicketId($ticketId)->getByTicketId();
+        return $this->ticketActivityRepositoryV1
+            ->setTicketId($ticketId)
+            ->setIncludeInternal($user->hasPermission('ticket.internal_note'))
+            ->getByTicketId();
     }
 
     public function getSlaSummary(object $ticket): array

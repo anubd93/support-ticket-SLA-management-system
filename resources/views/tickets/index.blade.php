@@ -59,7 +59,7 @@
             @elseif (request()->routeIs('tickets.queue'))
                 <tr><td colspan="8" class="center muted">No tickets assigned to you. Pick one from <a href="{{ route('tickets.unassigned') }}">Unassigned</a>.</td></tr>
             @else
-                <tr><td colspan="8" class="center muted">No active tickets. <a href="{{ route('tickets.create') }}">Create one</a>.</td></tr>
+                <tr><td colspan="8" class="center muted">No active tickets.@can('ticket.create') <a href="{{ route('tickets.create') }}">Create one</a>.@endcan</td></tr>
             @endif
         @endforelse
         </tbody>

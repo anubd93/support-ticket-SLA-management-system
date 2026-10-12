@@ -56,9 +56,6 @@ class TicketPolicy
             : Response::deny('Resolved or closed tickets cannot be reassigned.');
     }
 
-    /**
-     * Pre-check for the Accept button. The real race is settled by the atomic update in the service.
-     */
     public function claim(User $user, object $ticket): Response
     {
         if (! $this->canSee($user, $ticket)) {
@@ -76,6 +73,34 @@ class TicketPolicy
         return $this->status($ticket)->isActive()
             ? Response::allow()
             : Response::deny('Resolved or closed tickets cannot be accepted.');
+    }
+
+    public function reply(User $user, object $ticket): Response
+    {
+        if (! $this->canSee($user, $ticket)) {
+            return Response::denyAsNotFound();
+        }
+
+        if (! $user->hasPermission('ticket.reply')) {
+            return Response::deny('You are not allowed to reply to tickets.');
+        }
+
+        return $this->status($ticket) === TicketStatus::Closed
+            ? Response::deny('Closed tickets cannot receive replies.')
+            : Response::allow();
+    }
+
+    public function addInternalNote(User $user, object $ticket): Response
+    {
+        $reply = $this->reply($user, $ticket);
+
+        if ($reply->denied()) {
+            return $reply;
+        }
+
+        return $user->hasPermission('ticket.internal_note')
+            ? Response::allow()
+            : Response::deny('You are not allowed to add internal notes.');
     }
 
     private function canSee(User $user, object $ticket): bool

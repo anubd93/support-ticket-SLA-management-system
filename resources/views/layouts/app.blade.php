@@ -101,8 +101,8 @@
                     const result = await AjaxForm.submit(form);
 
                     if (result.response.ok) {
-                        if (onSuccess) return onSuccess(result.data);
-                        if (result.data.redirect) return window.location.assign(result.data.redirect);
+                        if (!onSuccess && result.data.redirect) return window.location.assign(result.data.redirect);
+                        if (onSuccess) onSuccess(result.data);
                     } else if (result.response.status === 422 && result.data.errors) {
                         AjaxForm.showErrors(form, result.data.errors);
                     } else {

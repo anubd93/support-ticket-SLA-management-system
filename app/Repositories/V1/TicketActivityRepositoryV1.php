@@ -2,6 +2,7 @@
 
 namespace App\Repositories\V1;
 
+use App\Enums\V1\ActivityType;
 use App\Models\V1\TicketActivity;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -9,6 +10,15 @@ use Illuminate\Support\Facades\DB;
 class TicketActivityRepositoryV1
 {
     private $id, $ticket_id, $user_id, $type, $old_values, $new_values, $created_at;
+
+    // false = customers: "Internal note added" entries are left out.
+    private bool $include_internal = true;
+
+    public function setIncludeInternal(bool $include_internal)
+    {
+        $this->include_internal = $include_internal;
+        return $this;
+    }
 
     public function setId($id)
     {
@@ -72,6 +82,7 @@ class TicketActivityRepositoryV1
             ->leftJoin('users', 'users.id', '=', 'ticket_activities.user_id')
             ->where('ticket_activities.ticket_id', $this->ticket_id)
             ->whereNull('ticket_activities.deleted_at')
+            ->when(! $this->include_internal, fn ($query) => $query->where('ticket_activities.type', '!=', ActivityType::InternalNote))
             ->select(
                 'ticket_activities.id',
                 'ticket_activities.type',

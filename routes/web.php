@@ -4,6 +4,7 @@ use App\Http\Controllers\V1\AuthControllerV1;
 use App\Http\Controllers\V1\DashboardControllerV1;
 use App\Http\Controllers\V1\TicketAssignmentControllerV1;
 use App\Http\Controllers\V1\TicketControllerV1;
+use App\Http\Controllers\V1\TicketReplyControllerV1;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -30,5 +31,6 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::patch('/{id}/status', [TicketControllerV1::class, 'updateStatus'])->whereNumber('id')->name('tickets.status');
         Route::patch('/{id}/assign', [TicketAssignmentControllerV1::class, 'assign'])->whereNumber('id')->name('tickets.assign');
         Route::post('/{id}/claim', [TicketAssignmentControllerV1::class, 'claim'])->whereNumber('id')->name('tickets.claim');
+        Route::post('/{id}/replies', [TicketReplyControllerV1::class, 'store'])->whereNumber('id')->name('tickets.replies.store');
     });
 });

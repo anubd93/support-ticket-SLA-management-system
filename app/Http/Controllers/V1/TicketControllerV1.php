@@ -8,6 +8,7 @@ use App\Http\Requests\V1\UpdateTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketStatusRequestV1;
 use App\Models\V1\Ticket;
 use App\Services\V1\TicketAssignmentServiceV1;
+use App\Services\V1\TicketReplyServiceV1;
 use App\Services\V1\TicketServiceV1;
 use Exception;
 use Illuminate\Contracts\View\View;
@@ -19,7 +20,8 @@ use Symfony\Component\HttpFoundation\Response;
 class TicketControllerV1 extends Controller
 {
     public function __construct(private readonly TicketServiceV1 $ticketServiceV1,
-                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1
+                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1,
+                                private readonly TicketReplyServiceV1 $ticketReplyServiceV1
     ) {}
 
     public function index(Request $request): View
@@ -81,14 +83,15 @@ class TicketControllerV1 extends Controller
         }
     }
 
-    public function show(int $id): View
+    public function show(Request $request, int $id): View
     {
         $ticket = $this->findOrFail($id);
         Gate::authorize('view', [Ticket::class, $ticket]);
 
         return view('tickets.show', [
             'ticket' => $ticket,
-            'activities' => $this->ticketServiceV1->getActivities($id),
+            'replies' => $this->ticketReplyServiceV1->getThread($id, $request->user()),
+            'activities' => $this->ticketServiceV1->getActivities($id, $request->user()),
             'sla' => $this->ticketServiceV1->getSlaSummary($ticket),
             'agents' => Gate::allows('assign', [Ticket::class, $ticket])
                 ? $this->ticketAssignmentServiceV1->getAgentOptions()

@@ -56,6 +56,46 @@
         </div>
 
         <div class="card">
+            <div class="card-head"><h2>Conversation</h2></div>
+            <ul class="thread" id="thread">
+                @foreach ($replies as $reply)
+                    @include('tickets.partials.reply-item', ['reply' => $reply])
+                @endforeach
+            </ul>
+            <div class="card-body" id="thread-empty" style="{{ $replies->isEmpty() ? '' : 'display:none' }}">
+                <p class="muted mb-0">No replies yet.</p>
+            </div>
+
+            @can('reply', [\App\Models\V1\Ticket::class, $ticket])
+                <form id="reply-form" class="composer" method="POST" action="{{ route('tickets.replies.store', $ticket->id) }}" novalidate>
+                    @csrf
+                    <input type="hidden" name="is_internal" value="0">
+                    @can('addInternalNote', [\App\Models\V1\Ticket::class, $ticket])
+                        <div class="tabs">
+                            <button type="button" class="tab active" data-compose="0"><i class="icon-reply"></i>Reply</button>
+                            <button type="button" class="tab" data-compose="1"><i class="icon-lock"></i>Internal note</button>
+                        </div>
+                    @endcan
+                    <div class="callout red" data-form-alert style="display:none; margin: 0.8rem 1.1rem 0">
+                        <i class="icon-circle-alert"></i>
+                        <div data-form-alert-text></div>
+                    </div>
+                    <textarea name="body" class="textarea" placeholder="Write a reply..." maxlength="10000"></textarea>
+                    <div class="composer-foot">
+                        <div class="error" data-error-for="body" style="display:none"></div>
+                        <div class="ml-auto flex">
+                            <button type="submit" class="btn btn-sm btn-primary">Send reply</button>
+                        </div>
+                    </div>
+                </form>
+            @else
+                @if ($status === \App\Enums\V1\TicketStatus::Closed)
+                    <div class="composer"><p class="card-body muted mb-0">This ticket is closed. Closed tickets cannot receive replies.</p></div>
+                @endif
+            @endcan
+        </div>
+
+        <div class="card">
             <div class="card-head"><h2>Activity</h2></div>
             <div class="card-body">
                 @if ($activities->isEmpty())
@@ -209,6 +249,35 @@
     const statusForm = document.getElementById('status-form');
     if (statusForm) {
         AjaxForm.handle(statusForm, function () { window.location.reload(); });
+    }
+
+    // POST /tickets/{id}/replies -> 201 { html, reload } | 422 { errors } | 403/422 { message }
+    const replyForm = document.getElementById('reply-form');
+    if (replyForm) {
+        const isInternal = replyForm.querySelector('[name="is_internal"]');
+        const textarea = replyForm.querySelector('textarea');
+        const sendButton = replyForm.querySelector('[type="submit"]');
+
+        // Reply / Internal note tabs (only rendered for agents and admins)
+        replyForm.querySelectorAll('[data-compose]').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                const internal = tab.dataset.compose === '1';
+                isInternal.value = internal ? '1' : '0';
+                replyForm.classList.toggle('internal', internal);
+                replyForm.querySelectorAll('[data-compose]').forEach(function (other) { other.classList.toggle('active', other === tab); });
+                textarea.placeholder = internal ? 'Internal note, only agents and admins can see this...' : 'Write a reply...';
+                sendButton.textContent = internal ? 'Add note' : 'Send reply';
+            });
+        });
+
+        AjaxForm.handle(replyForm, function (data) {
+            // The reply changed the ticket status (e.g. SLA resumed): status, SLA and activity need a refresh.
+            if (data.reload) return window.location.reload();
+
+            document.getElementById('thread').insertAdjacentHTML('beforeend', data.html);
+            document.getElementById('thread-empty').style.display = 'none';
+            textarea.value = '';
+        });
     }
 
     // PATCH /tickets/{id}/assign (admin) and POST /tickets/{id}/claim (agent) -> reload on success
