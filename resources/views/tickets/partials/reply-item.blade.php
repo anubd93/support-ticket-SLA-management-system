@@ -1,4 +1,4 @@
-{{-- Expects: $reply (row from ticket_replies joined with users.name and roles.name) --}}
+{{-- Expects: $reply (row from ticket_replies joined with users.name and roles.name), $files (its attachments) --}}
 @php
     $role = \App\Enums\V1\UserRole::tryFrom($reply->user_role ?? '');
 @endphp
@@ -16,5 +16,6 @@
         </div>
         {{-- e() escapes the text first, then nl2br keeps the line breaks --}}
         <p>{!! nl2br(e($reply->body)) !!}</p>
+        @include('tickets.partials.attachment-list', ['files' => $files ?? []])
     </div>
 </li>

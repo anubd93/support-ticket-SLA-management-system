@@ -103,6 +103,17 @@ class TicketPolicy
             : Response::deny('You are not allowed to add internal notes.');
     }
 
+    public function download(User $user, object $attachment): Response
+    {
+        if (! $this->canSee($user, $attachment)) {
+            return Response::denyAsNotFound();
+        }
+
+        return $attachment->is_internal && ! $user->hasPermission('ticket.internal_note')
+            ? Response::denyAsNotFound()
+            : Response::allow();
+    }
+
     private function canSee(User $user, object $ticket): bool
     {
         if ($user->hasPermission('ticket.view_all')) {

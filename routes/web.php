@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\V1\AttachmentControllerV1;
 use App\Http\Controllers\V1\AuthControllerV1;
 use App\Http\Controllers\V1\DashboardControllerV1;
 use App\Http\Controllers\V1\TicketAssignmentControllerV1;
@@ -32,5 +33,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::patch('/{id}/assign', [TicketAssignmentControllerV1::class, 'assign'])->whereNumber('id')->name('tickets.assign');
         Route::post('/{id}/claim', [TicketAssignmentControllerV1::class, 'claim'])->whereNumber('id')->name('tickets.claim');
         Route::post('/{id}/replies', [TicketReplyControllerV1::class, 'store'])->whereNumber('id')->name('tickets.replies.store');
+    });
+
+    Route::prefix('attachments')->group(function () {
+         Route::get('/{id}', [AttachmentControllerV1::class, 'download'])->whereNumber('id')->name('attachments.download');
     });
 });

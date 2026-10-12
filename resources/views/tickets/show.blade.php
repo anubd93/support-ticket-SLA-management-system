@@ -52,6 +52,7 @@
             <div class="card-head"><h2>Description</h2></div>
             <div class="card-body">
                 <p class="prose">{{ $ticket->description }}</p>
+                @include('tickets.partials.attachment-list', ['files' => $attachments->get('ticket', [])])
             </div>
         </div>
 
@@ -59,7 +60,7 @@
             <div class="card-head"><h2>Conversation</h2></div>
             <ul class="thread" id="thread">
                 @foreach ($replies as $reply)
-                    @include('tickets.partials.reply-item', ['reply' => $reply])
+                    @include('tickets.partials.reply-item', ['reply' => $reply, 'files' => $attachments->get($reply->id, [])])
                 @endforeach
             </ul>
             <div class="card-body" id="thread-empty" style="{{ $replies->isEmpty() ? '' : 'display:none' }}">
@@ -82,7 +83,10 @@
                     </div>
                     <textarea name="body" class="textarea" placeholder="Write a reply..." maxlength="10000"></textarea>
                     <div class="composer-foot">
+                        <label class="btn btn-sm btn-ghost"><i class="icon-paperclip"></i>Attach<input type="file" name="attachments[]" multiple hidden accept="{{ '.' . implode(',.', config('tickets.attachments.mimes')) }}"></label>
+                        <span class="xs faint" data-file-names>up to {{ config('tickets.attachments.max_files') }} files, {{ round(config('tickets.attachments.max_kb') / 1024) }} MB each</span>
                         <div class="error" data-error-for="body" style="display:none"></div>
+                        <div class="error" data-error-for="attachments" style="display:none"></div>
                         <div class="ml-auto flex">
                             <button type="submit" class="btn btn-sm btn-primary">Send reply</button>
                         </div>
@@ -257,6 +261,16 @@
         const isInternal = replyForm.querySelector('[name="is_internal"]');
         const textarea = replyForm.querySelector('textarea');
         const sendButton = replyForm.querySelector('[type="submit"]');
+        const fileInput = replyForm.querySelector('[name="attachments[]"]');
+        const fileNames = replyForm.querySelector('[data-file-names]');
+        const fileHint = fileNames.textContent;
+
+        // Show the chosen file names next to the Attach button
+        fileInput.addEventListener('change', function () {
+            fileNames.textContent = fileInput.files.length
+                ? Array.from(fileInput.files).map(function (file) { return file.name; }).join(', ')
+                : fileHint;
+        });
 
         // Reply / Internal note tabs (only rendered for agents and admins)
         replyForm.querySelectorAll('[data-compose]').forEach(function (tab) {
@@ -277,6 +291,8 @@
             document.getElementById('thread').insertAdjacentHTML('beforeend', data.html);
             document.getElementById('thread-empty').style.display = 'none';
             textarea.value = '';
+            fileInput.value = '';
+            fileNames.textContent = fileHint;
         });
     }
 

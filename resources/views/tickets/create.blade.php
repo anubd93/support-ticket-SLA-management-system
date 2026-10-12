@@ -19,6 +19,13 @@
         <div class="card-body">
             @include('tickets.partials.form', ['ticket' => null])
 
+            <div class="field">
+                <label class="label" for="attachments">Attachments</label>
+                <input id="attachments" name="attachments[]" type="file" class="input" multiple accept="{{ '.' . implode(',.', config('tickets.attachments.mimes')) }}">
+                <div class="hint">Up to {{ config('tickets.attachments.max_files') }} files, {{ round(config('tickets.attachments.max_kb') / 1024) }} MB each: {{ implode(', ', config('tickets.attachments.mimes')) }}</div>
+                <div class="error" data-error-for="attachments" style="display:none"></div>
+            </div>
+
             <div class="form-foot">
                 <a href="{{ route('tickets.index') }}" class="btn">Cancel</a>
                 <button type="submit" class="btn btn-primary">Create ticket</button>

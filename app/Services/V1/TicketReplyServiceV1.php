@@ -12,18 +12,33 @@ use App\Repositories\V1\TicketRepositoryV1;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class TicketReplyServiceV1
 {
     public function __construct(private readonly TicketReplyRepositoryV1 $ticketReplyRepositoryV1,
                                 private readonly TicketRepositoryV1 $ticketRepositoryV1,
                                 private readonly TicketActivityRepositoryV1 $ticketActivityRepositoryV1,
-                                private readonly TicketServiceV1 $ticketServiceV1
+                                private readonly TicketServiceV1 $ticketServiceV1,
+                                private readonly AttachmentServiceV1 $attachmentServiceV1
     ) {}
 
     public function create(int $ticketId, array $data, User $user): array
     {
-        return DB::transaction(function () use ($ticketId, $data, $user) {
+        // Files go to disk first; if anything below fails they are deleted again.
+        $stored = $this->attachmentServiceV1->storeFiles($data['attachments'] ?? []);
+
+        try {
+            return $this->createReply($ticketId, $data, $user, $stored);
+        } catch (Throwable $exception) {
+            $this->attachmentServiceV1->discard($stored);
+            throw $exception;
+        }
+    }
+
+    private function createReply(int $ticketId, array $data, User $user, array $stored): array
+    {
+        return DB::transaction(function () use ($ticketId, $data, $user, $stored) {
             $ticket = $this->ticketRepositoryV1->setId($ticketId)->findForUpdate();
 
             if ($ticket->status === TicketStatus::Closed) {
@@ -39,11 +54,13 @@ class TicketReplyServiceV1
                 ->setIsInternal($isInternal)
                 ->store();
 
-            $this->logActivity($ticketId, $user->id, $isInternal ? ActivityType::InternalNote : ActivityType::Replied, [
-                'reply_id' => $reply->id,
-            ]);
+            $attachments = $this->attachmentServiceV1->saveRecords($ticketId, $reply->id, $stored, $user->id);
 
-            // Internal notes are staff-only work: no first response, no status or SLA change.
+            $this->logActivity($ticketId, $user->id, $isInternal ? ActivityType::InternalNote : ActivityType::Replied, array_filter([
+                'reply_id' => $reply->id,
+                'files' => array_column($stored, 'original_name'),
+            ]));
+
             $statusChanged = false;
 
             if (! $isInternal) {
@@ -54,6 +71,7 @@ class TicketReplyServiceV1
 
             return [
                 'reply' => $this->ticketReplyRepositoryV1->setId($reply->id)->findById(),
+                'attachments' => $attachments,
                 'status_changed' => $statusChanged,
             ];
         });

@@ -29,7 +29,10 @@ class TicketReplyControllerV1 extends Controller
 
             return response()->json([
                 'message' => $result['reply']->is_internal ? 'Internal note added.' : 'Reply sent.',
-                'html' => view('tickets.partials.reply-item', ['reply' => $result['reply']])->render(),
+                'html' => view('tickets.partials.reply-item', [
+                    'reply' => $result['reply'],
+                    'files' => $result['attachments'],
+                ])->render(),
                 'reload' => $result['status_changed'],
             ], Response::HTTP_CREATED);
         } catch (Exception $exception) {

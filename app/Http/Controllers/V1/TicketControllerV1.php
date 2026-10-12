@@ -7,6 +7,7 @@ use App\Http\Requests\V1\StoreTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketStatusRequestV1;
 use App\Models\V1\Ticket;
+use App\Services\V1\AttachmentServiceV1;
 use App\Services\V1\TicketAssignmentServiceV1;
 use App\Services\V1\TicketReplyServiceV1;
 use App\Services\V1\TicketServiceV1;
@@ -21,7 +22,8 @@ class TicketControllerV1 extends Controller
 {
     public function __construct(private readonly TicketServiceV1 $ticketServiceV1,
                                 private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1,
-                                private readonly TicketReplyServiceV1 $ticketReplyServiceV1
+                                private readonly TicketReplyServiceV1 $ticketReplyServiceV1,
+                                private readonly AttachmentServiceV1 $attachmentServiceV1
     ) {}
 
     public function index(Request $request): View
@@ -91,6 +93,7 @@ class TicketControllerV1 extends Controller
         return view('tickets.show', [
             'ticket' => $ticket,
             'replies' => $this->ticketReplyServiceV1->getThread($id, $request->user()),
+            'attachments' => $this->attachmentServiceV1->getForTicket($id, $request->user()),
             'activities' => $this->ticketServiceV1->getActivities($id, $request->user()),
             'sla' => $this->ticketServiceV1->getSlaSummary($ticket),
             'agents' => Gate::allows('assign', [Ticket::class, $ticket])

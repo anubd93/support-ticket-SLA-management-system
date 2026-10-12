@@ -16,6 +16,7 @@ use App\Repositories\V1\TicketRepositoryV1;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class TicketServiceV1
 {
@@ -24,12 +25,26 @@ class TicketServiceV1
                                 private readonly TicketActivityRepositoryV1 $ticketActivityRepositoryV1,
                                 private readonly TicketNumberServiceV1 $ticketNumberServiceV1,
                                 private readonly SlaCalculatorServiceV1 $slaCalculatorServiceV1,
-                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1
+                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1,
+                                private readonly AttachmentServiceV1 $attachmentServiceV1
     ) {}
 
     public function create(array $data, int $userId): Ticket
     {
-        return DB::transaction(function () use ($data, $userId) {
+        // Files go to disk first; if anything below fails they are deleted again.
+        $stored = $this->attachmentServiceV1->storeFiles($data['attachments'] ?? []);
+
+        try {
+            return $this->createTicket($data, $userId, $stored);
+        } catch (Throwable $exception) {
+            $this->attachmentServiceV1->discard($stored);
+            throw $exception;
+        }
+    }
+
+    private function createTicket(array $data, int $userId, array $stored): Ticket
+    {
+        return DB::transaction(function () use ($data, $userId, $stored) {
             $priority = TicketPriority::from($data['priority']);
             $deadlines = $this->slaCalculatorServiceV1->deadlines($priority, now());
 
@@ -46,10 +61,13 @@ class TicketServiceV1
                 ->setSlaWarningAt($deadlines['warning_at'])
                 ->store();
 
-            $this->logActivity($ticket->id, $userId, ActivityType::Created, null, [
+            $this->attachmentServiceV1->saveRecords($ticket->id, null, $stored, $userId);
+
+            $this->logActivity($ticket->id, $userId, ActivityType::Created, null, array_filter([
                 'ticket_number' => $ticket->ticket_number,
                 'priority' => $priority->value,
-            ]);
+                'files' => array_column($stored, 'original_name'),
+            ]));
 
             $this->ticketAssignmentServiceV1->autoAssign($ticket);
 

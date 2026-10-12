@@ -55,6 +55,9 @@
             @default
                 {{ $type->label() }} by {{ $actor }}
         @endswitch
+        @if (! empty($new['files']))
+            <span class="faint">· {{ count($new['files']) }} {{ \Illuminate\Support\Str::plural('file', count($new['files'])) }} attached</span>
+        @endif
     </p>
     <time>{{ \Illuminate\Support\Carbon::parse($activity->created_at)->format('d M Y, H:i') }}</time>
 </li>

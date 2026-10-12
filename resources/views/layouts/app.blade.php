@@ -69,8 +69,10 @@
 
         showErrors(form, errors) {
             Object.keys(errors).forEach(function (field) {
-                const input = form.querySelector('[name="' + field + '"]');
-                const box = form.querySelector('[data-error-for="' + field + '"]');
+                // Array fields come back as "attachments.0": fall back to the base name and its "attachments[]" input.
+                const base = field.split('.')[0];
+                const input = form.querySelector('[name="' + field + '"]') || form.querySelector('[name="' + base + '[]"]');
+                const box = form.querySelector('[data-error-for="' + field + '"]') || form.querySelector('[data-error-for="' + base + '"]');
                 if (input) input.classList.add('invalid');
                 if (box) {
                     box.textContent = errors[field][0];

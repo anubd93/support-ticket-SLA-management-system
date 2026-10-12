@@ -3,11 +3,14 @@
 namespace App\Http\Requests\V1;
 
 use App\Enums\V1\TicketPriority;
+use App\Http\Requests\V1\Concerns\AttachmentRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreTicketRequestV1 extends FormRequest
 {
+    use AttachmentRules;
+
     public function authorize(): bool
     {
         return true;
@@ -24,7 +27,13 @@ class StoreTicketRequestV1 extends FormRequest
                 Rule::exists('categories', 'id')->where('is_active', true)->whereNull('deleted_at'),
             ],
             'priority' => ['required', Rule::enum(TicketPriority::class)],
+            ...$this->attachmentRules(),
         ];
+    }
+
+    public function messages(): array
+    {
+        return $this->attachmentMessages();
     }
 
     public function attributes(): array
