@@ -6,12 +6,14 @@ namespace App\Models;
 use App\Enums\V1\UserRole;
 use App\Models\V1\Category;
 use App\Models\V1\Role;
+use App\Models\V1\Ticket;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -43,7 +45,17 @@ class User extends Authenticatable implements OAuthenticatable
 
     public function categories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'category_user');
+        return $this->belongsToMany(Category::class, 'category_user')->wherePivotNull('deleted_at');
+    }
+    
+    public function createdTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'created_by');
+    }
+    
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'assigned_to');
     }
 
     public function hasPermission(string $permission): bool

@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Models\V1\Category;
 use App\Models\V1\Role;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class UserSeeder extends Seeder
 {
@@ -69,13 +68,10 @@ class UserSeeder extends Seeder
                 ]
             );
 
-            foreach ($user['categories'] ?? [] as $slug) {
-                // category_user has no model; insertOrIgnore keeps the seeder re-runnable (composite primary key).
-                DB::table('category_user')->insertOrIgnore([
-                    'category_id' => $categoryIds[$slug],
-                    'user_id' => $model->id,
-                ]);
-            }
+            // Agent skills through the User::categories() relationship; sync() also removes skills not listed here.
+            $model->categories()->sync(
+                collect($user['categories'] ?? [])->map(fn ($slug) => $categoryIds[$slug])->all()
+            );
         }
     }
 }
