@@ -7,6 +7,7 @@ use App\Enums\V1\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -121,6 +122,34 @@ class UserRepositoryV1
             ->select('u.id', 'u.name', 'u.is_available')
             ->selectRaw('COUNT(t.id) AS open_count')
             ->groupBy('u.id', 'u.name', 'u.is_available')
+            ->orderBy('u.name')
+            ->get();
+    }
+
+    public function getAgentWorkload(Carbon $since): Collection
+    {
+        $now = now();
+        $active = TicketStatus::active();
+        $running = [TicketStatus::Open, TicketStatus::InProgress];
+        $activeIn = implode(',', array_fill(0, count($active), '?'));
+        $runningIn = implode(',', array_fill(0, count($running), '?'));
+
+        return DB::table('users as u')
+            ->join('roles as r', 'r.id', '=', 'u.role_id')
+            ->leftJoin('tickets as t', function ($join) use ($active, $since) {
+                $join->on('t.assigned_to', '=', 'u.id')
+                    ->whereNull('t.deleted_at')
+                    ->where(fn ($query) => $query->whereIn('t.status', $active)->orWhere('t.resolved_at', '>=', $since));
+            })
+            ->where('r.name', UserRole::Agent)
+            ->where('u.is_active', true)
+            ->whereNull('u.deleted_at')
+            ->select('u.id', 'u.name', 'u.is_available')
+            ->selectRaw("SUM(CASE WHEN t.status IN ($activeIn) THEN 1 ELSE 0 END) AS open_total", $active)
+            ->selectRaw("SUM(CASE WHEN t.status IN ($runningIn) AND t.sla_due_at < ? THEN 1 ELSE 0 END) AS breached", [...$running, $now])
+            ->selectRaw('SUM(CASE WHEN t.resolved_at >= ? THEN 1 ELSE 0 END) AS resolved_recent', [$since])
+            ->groupBy('u.id', 'u.name', 'u.is_available')
+            ->orderByDesc('open_total')
             ->orderBy('u.name')
             ->get();
     }

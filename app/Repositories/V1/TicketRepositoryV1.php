@@ -2,10 +2,13 @@
 
 namespace App\Repositories\V1;
 
+use App\Enums\V1\TicketPriority;
 use App\Enums\V1\TicketStatus;
 use App\Models\V1\Ticket;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TicketRepositoryV1
@@ -398,6 +401,63 @@ class TicketRepositoryV1
             'unassigned' => (int) $row->unassigned_count,
             'finished' => (int) $row->total_count - $activeCount,
         ];
+    }
+
+    public function getDashboardCounts(?int $agentId, Carbon $since): object
+    {
+        $now = now();
+        $active = TicketStatus::active();
+        $running = [TicketStatus::Open, TicketStatus::InProgress];
+        $activeIn = implode(',', array_fill(0, count($active), '?'));
+        $runningIn = implode(',', array_fill(0, count($running), '?'));
+        $finishedAt = 'COALESCE(resolved_at, closed_at)';
+
+        return DB::table('tickets')
+            ->whereNull('deleted_at')
+            ->when($this->only_created_by, fn ($query, $userId) => $query->where('created_by', $userId))
+            ->selectRaw("SUM(CASE WHEN status IN ($activeIn) THEN 1 ELSE 0 END) AS open_total", $active)
+            ->selectRaw("SUM(CASE WHEN status IN ($activeIn) AND assigned_to IS NULL THEN 1 ELSE 0 END) AS unassigned", $active)
+            ->selectRaw("SUM(CASE WHEN status IN ($activeIn) AND priority = ? THEN 1 ELSE 0 END) AS critical", [...$active, TicketPriority::Critical])
+            ->selectRaw("SUM(CASE WHEN status IN ($runningIn) AND sla_due_at < ? THEN 1 ELSE 0 END) AS breached", [...$running, $now])
+            ->selectRaw("SUM(CASE WHEN status IN ($runningIn) AND sla_warning_at <= ? AND sla_due_at >= ? THEN 1 ELSE 0 END) AS approaching", [...$running, $now, $now])
+            ->selectRaw("SUM(CASE WHEN status IN ($activeIn) AND escalation_level > 0 THEN 1 ELSE 0 END) AS escalated", $active)
+            ->selectRaw('SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS waiting', [TicketStatus::WaitingForCustomer])
+            ->selectRaw("SUM(CASE WHEN $finishedAt >= ? THEN 1 ELSE 0 END) AS finished_recent", [$since])
+            ->selectRaw("SUM(CASE WHEN $finishedAt >= ? AND $finishedAt <= sla_due_at THEN 1 ELSE 0 END) AS met_recent", [$since])
+            ->selectRaw("SUM(CASE WHEN status IN ($activeIn) AND assigned_to = ? THEN 1 ELSE 0 END) AS mine", [...$active, $agentId ?? 0])
+            ->first();
+    }
+
+    public function countActiveByPriority(): array
+    {
+        return DB::table('tickets')
+            ->whereNull('deleted_at')
+            ->whereIn('status', TicketStatus::active())
+            ->when($this->only_created_by, fn ($query, $userId) => $query->where('created_by', $userId))
+            ->groupBy('priority')
+            ->selectRaw('priority, COUNT(*) AS total')
+            ->pluck('total', 'priority')
+            ->map(fn ($total) => (int) $total)
+            ->all();
+    }
+
+    public function getNeedsAttention(int $limit): Collection
+    {
+        return $this->baseQuery()
+            ->whereIn('t.status', [TicketStatus::Open, TicketStatus::InProgress])
+            ->where('t.sla_warning_at', '<=', now())
+            ->orderBy('t.sla_due_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function getRecentlyUpdated(int $limit): Collection
+    {
+        return $this->baseQuery()
+            ->orderByDesc('t.updated_at')
+            ->orderByDesc('t.id')
+            ->limit($limit)
+            ->get();
     }
 
     private function baseQuery(): Builder
