@@ -9,7 +9,8 @@
     $dotClass = match ($type) {
         \App\Enums\V1\ActivityType::Created, \App\Enums\V1\ActivityType::Assigned => 'teal',
         \App\Enums\V1\ActivityType::Resolved, \App\Enums\V1\ActivityType::Closed => 'green',
-        \App\Enums\V1\ActivityType::PriorityChanged, \App\Enums\V1\ActivityType::Reopened => 'amber',
+        \App\Enums\V1\ActivityType::PriorityChanged, \App\Enums\V1\ActivityType::Reopened, \App\Enums\V1\ActivityType::SlaWarning => 'amber',
+        \App\Enums\V1\ActivityType::SlaBreached => 'red',
         default => '',
     };
 @endphp
@@ -38,6 +39,14 @@
                 @else
                     Assigned to <span class="strong">{{ $new['agent'] ?? '-' }}</span> by {{ $actor }}
                 @endif
+                @break
+            @case(\App\Enums\V1\ActivityType::SlaWarning)
+                <span class="strong">SLA approaching</span>, escalated to level {{ $new['level'] ?? 1 }}
+                (due {{ isset($new['due_at']) ? \Illuminate\Support\Carbon::parse($new['due_at'])->format('d M Y, H:i') : '-' }})
+                @break
+            @case(\App\Enums\V1\ActivityType::SlaBreached)
+                <span class="strong">SLA breached</span>, escalated to level {{ $new['level'] ?? 2 }}
+                (was due {{ isset($new['due_at']) ? \Illuminate\Support\Carbon::parse($new['due_at'])->format('d M Y, H:i') : '-' }})
                 @break
             @case(\App\Enums\V1\ActivityType::Unassigned)
                 Unassigned from <span class="strong">{{ $old['agent'] ?? '-' }}</span> by {{ $actor }}

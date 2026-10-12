@@ -1,5 +1,5 @@
 {{--
-    Expects: $ticket (row with status, sla_due_at, sla_warning_at, resolved_at, closed_at).
+    Expects: $ticket (row with status, sla_due_at, sla_warning_at, resolved_at, closed_at, escalation_level).
     Active: paused, breached, approaching or within. Finished: met or missed.
 --}}
 @php
@@ -25,4 +25,9 @@
     <span class="badge amber">Approaching</span> <span class="xs muted">due {{ $dueAt->format('d M, H:i') }}</span>
 @else
     <span class="badge green">Within SLA</span> <span class="xs muted">due {{ $dueAt->format('d M, H:i') }}</span>
+@endif
+
+{{-- Set by tickets:check-sla: 1 = SLA approaching, 2 = SLA breached --}}
+@if (($ticket->escalation_level ?? 0) > 0)
+    <span class="badge solid-red" title="Escalated, level {{ $ticket->escalation_level }}{{ $ticket->escalated_at ? ' on ' . \Illuminate\Support\Carbon::parse($ticket->escalated_at)->format('d M Y, H:i') : '' }}"><i class="icon-flame"></i>Escalated</span>
 @endif

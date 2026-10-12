@@ -111,6 +111,8 @@ class TicketServiceV1
                 ->setSlaWarningAt($deadlines['warning_at'])
                 ->updateDetails($ticket);
 
+            $this->resetEscalationIfDeadlinesMoved($ticket);
+
             if ($newPriority !== $oldPriority) {
                 $this->logActivity($ticket->id, $userId, ActivityType::PriorityChanged,
                     ['priority' => $oldPriority->value], ['priority' => $newPriority->value]);
@@ -175,6 +177,8 @@ class TicketServiceV1
                 ->setSlaDueAt($deadlines['due_at'])
                 ->setSlaWarningAt($deadlines['warning_at'])
                 ->updateStatus($ticket);
+
+            $this->resetEscalationIfDeadlinesMoved($ticket);
 
             $type = match (true) {
                 $to === TicketStatus::Resolved => ActivityType::Resolved,
@@ -288,6 +292,29 @@ class TicketServiceV1
             'categories' => $this->categoryRepositoryV1->getActive(),
             'slaHours' => $this->slaCalculatorServiceV1->resolutionHours(),
         ];
+    }
+    
+    private function resetEscalationIfDeadlinesMoved(Ticket $ticket): void
+    {
+        $warnAgain = $ticket->sla_warning_sent_at && $ticket->sla_warning_at?->isFuture();
+        $breachAgain = $ticket->sla_breached_at && $ticket->sla_due_at?->isFuture();
+
+        if (! $warnAgain && ! $breachAgain) {
+            return;
+        }
+
+        $warningSentAt = $warnAgain ? null : $ticket->sla_warning_sent_at;
+        $breachedAt = $breachAgain ? null : $ticket->sla_breached_at;
+
+        $this->ticketRepositoryV1
+            ->setSlaWarningSentAt($warningSentAt)
+            ->setSlaBreachedAt($breachedAt)
+            ->setEscalationLevel(match (true) {
+                $breachedAt !== null => EscalationServiceV1::LEVEL_BREACHED,
+                $warningSentAt !== null => EscalationServiceV1::LEVEL_APPROACHING,
+                default => 0,
+            })
+            ->updateEscalation($ticket);
     }
 
     private function logActivity(int $ticketId, ?int $userId, ActivityType $type, ?array $old, ?array $new): void

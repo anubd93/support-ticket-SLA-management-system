@@ -215,6 +215,9 @@
                 <dl class="meta">
                     <div><dt>Policy</dt><dd>{{ $priority->label() }} · {{ $sla['policy_minutes'] ? $duration($sla['policy_minutes']) : 'none' }}</dd></div>
                     <div><dt>Due</dt><dd>{{ $dueAt ? $dueAt->format('d M Y, H:i') : 'No SLA policy' }}</dd></div>
+                    @if ($ticket->escalation_level > 0)
+                        <div><dt>Escalated</dt><dd>Level {{ $ticket->escalation_level }} · {{ \Illuminate\Support\Carbon::parse($ticket->escalated_at)->format('d M Y, H:i') }}</dd></div>
+                    @endif
                     @if (($sla['paused_minutes'] ?? 0) > 0)
                         <div><dt>Paused total</dt><dd>{{ $duration($sla['paused_minutes']) }}</dd></div>
                     @endif

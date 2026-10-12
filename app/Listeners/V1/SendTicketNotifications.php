@@ -3,10 +3,14 @@
 namespace App\Listeners\V1;
 
 use App\Enums\V1\TicketStatus;
+use App\Events\V1\SlaApproaching;
+use App\Events\V1\SlaBreached;
 use App\Events\V1\TicketAssigned;
 use App\Events\V1\TicketCreated;
 use App\Events\V1\TicketReplied;
 use App\Events\V1\TicketStatusChanged;
+use App\Notifications\V1\SlaApproachingNotification;
+use App\Notifications\V1\SlaBreachedNotification;
 use App\Notifications\V1\TicketAssignedNotification;
 use App\Notifications\V1\TicketCreatedNotification;
 use App\Notifications\V1\TicketRepliedNotification;
@@ -127,6 +131,38 @@ class SendTicketNotifications
         );
     }
     
+    public function handleSlaApproaching(SlaApproaching $event): void
+    {
+        $ticket = $this->ticketRepositoryV1->setId($event->ticketId)->findById();
+
+        if (! $ticket) {
+            return;
+        }
+
+        // Staff only: the assigned agent, or the admins while nobody owns the ticket.
+        $recipients = $ticket->assigned_to
+            ? $this->userRepositoryV1->getNotifiableByIds([$ticket->assigned_to])
+            : $this->userRepositoryV1->getNotifiableAdmins();
+
+        Notification::send($recipients, new SlaApproachingNotification($ticket));
+    }
+
+    public function handleSlaBreached(SlaBreached $event): void
+    {
+        $ticket = $this->ticketRepositoryV1->setId($event->ticketId)->findById();
+
+        if (! $ticket) {
+            return;
+        }
+
+        // Staff only: a breach goes to the assigned agent AND all admins.
+        $recipients = $this->userRepositoryV1->getNotifiableAdmins()
+            ->merge($this->userRepositoryV1->getNotifiableByIds([$ticket->assigned_to]))
+            ->unique('id');
+
+        Notification::send($recipients, new SlaBreachedNotification($ticket));
+    }
+
     private function recipients(array $ids, ?int $exceptId): Collection
     {
         return $this->userRepositoryV1

@@ -267,6 +267,78 @@ class TicketRepositoryV1
         return $ticket;
     }
 
+    /**
+     * Atomic, like the concurrent claim: only the run that flips sla_breached_at from NULL wins (returns 1).
+     * A breached ticket also counts as warned, so it never gets a late "approaching" message.
+     */
+    public function markBreached(): int
+    {
+        return Ticket::whereKey($this->id)
+            ->whereNull('sla_breached_at')
+            ->update([
+                'sla_breached_at' => $this->sla_breached_at,
+                // MySQL applies SET assignments left to right, so sla_breached_at here is already the new value.
+                'sla_warning_sent_at' => DB::raw('COALESCE(sla_warning_sent_at, sla_breached_at)'),
+                'escalated_at' => $this->escalated_at,
+                'escalation_level' => $this->escalation_level,
+            ]);
+    }
+
+    public function markWarningSent(): int
+    {
+        return Ticket::whereKey($this->id)
+            ->whereNull('sla_warning_sent_at')
+            ->whereNull('sla_breached_at')
+            ->update([
+                'sla_warning_sent_at' => $this->sla_warning_sent_at,
+                'escalated_at' => $this->escalated_at,
+                'escalation_level' => $this->escalation_level,
+            ]);
+    }
+
+    /**
+     * Used when the deadlines move later, so a stage can fire again.
+     */
+    public function updateEscalation(Ticket $ticket): Ticket
+    {
+        $ticket->update([
+            'sla_warning_sent_at' => $this->sla_warning_sent_at,
+            'sla_breached_at' => $this->sla_breached_at,
+            'escalation_level' => $this->escalation_level,
+        ]);
+
+        return $ticket;
+    }
+
+    /**
+     * Running tickets (paused ones excluded) whose deadline has passed and that were not escalated for it yet.
+     * Uses the (status, sla_due_at) index. chunkById keeps memory flat however many match.
+     */
+    public function chunkDueForBreach(int $size, callable $callback): void
+    {
+        $this->escalationQuery()
+            ->where('sla_due_at', '<', now())
+            ->whereNull('sla_breached_at')
+            ->chunkById($size, $callback);
+    }
+
+    public function chunkDueForWarning(int $size, callable $callback): void
+    {
+        $this->escalationQuery()
+            ->where('sla_warning_at', '<=', now())
+            ->whereNull('sla_warning_sent_at')
+            ->whereNull('sla_breached_at')
+            ->chunkById($size, $callback);
+    }
+
+    private function escalationQuery(): Builder
+    {
+        return DB::table('tickets')
+            ->whereIn('status', [TicketStatus::Open, TicketStatus::InProgress])
+            ->whereNull('deleted_at')
+            ->select('id', 'sla_due_at', 'sla_warning_at');
+    }
+
     public function findById(): ?object
     {
         return $this->baseQuery()
@@ -349,6 +421,8 @@ class TicketRepositoryV1
                 't.sla_warning_at',
                 't.sla_paused_at',
                 't.sla_paused_minutes',
+                't.escalation_level',
+                't.escalated_at',
                 't.resolved_at',
                 't.closed_at',
                 't.created_at',
