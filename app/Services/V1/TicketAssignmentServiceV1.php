@@ -4,6 +4,7 @@ namespace App\Services\V1;
 
 use App\Enums\V1\ActivityType;
 use App\Enums\V1\TicketStatus;
+use App\Events\V1\TicketAssigned;
 use Exception;
 use App\Models\V1\Ticket;
 use App\Repositories\V1\TicketActivityRepositoryV1;
@@ -41,6 +42,8 @@ class TicketAssignmentServiceV1
             'agent' => $this->userRepositoryV1->setId($agentId)->getNameById(),
             'auto' => true,
         ]);
+
+        TicketAssigned::dispatch($ticket->id, $agentId, null);
     }
 
     public function assign(int $id, ?int $agentId, int $userId): Ticket
@@ -80,6 +83,7 @@ class TicketAssignmentServiceV1
             if ($agent) {
                 $this->touchAgent($agent->id);
                 $this->logActivity($ticket->id, $userId, ActivityType::Assigned, $old, ['agent_id' => $agent->id, 'agent' => $agent->name]);
+                TicketAssigned::dispatch($ticket->id, (int) $agent->id, $userId);
             } else {
                 $this->logActivity($ticket->id, $userId, ActivityType::Unassigned, $old, null);
             }
@@ -114,6 +118,8 @@ class TicketAssignmentServiceV1
                 'agent' => $this->userRepositoryV1->setId($agentId)->getNameById(),
                 'claimed' => true,
             ]);
+            
+            TicketAssigned::dispatch($id, $agentId, $agentId);
 
             if ($ticket->status === TicketStatus::Open) {
                 $this->ticketRepositoryV1->markInProgress($ticket);

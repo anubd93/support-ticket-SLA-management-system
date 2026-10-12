@@ -4,6 +4,7 @@ namespace App\Services\V1;
 
 use App\Enums\V1\ActivityType;
 use App\Enums\V1\TicketStatus;
+use App\Events\V1\TicketReplied;
 use App\Models\User;
 use App\Models\V1\Ticket;
 use App\Repositories\V1\TicketActivityRepositoryV1;
@@ -60,6 +61,8 @@ class TicketReplyServiceV1
                 'reply_id' => $reply->id,
                 'files' => array_column($stored, 'original_name'),
             ]));
+
+            TicketReplied::dispatch($ticketId, $reply->id, $user->id, $isInternal);
 
             $statusChanged = false;
 

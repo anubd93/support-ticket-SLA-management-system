@@ -7,7 +7,9 @@ use App\Models\V1\Ticket;
 use App\Policies\V1\TicketPolicy;
 use App\Services\V1\Assignment\AutoAssignmentStrategy;
 use App\Services\V1\Assignment\LeastLoadedAssignmentStrategy;
+use App\Services\V1\NotificationServiceV1;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -17,7 +19,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Swap the auto-assignment rule here (e.g. pure round-robin) without touching TicketServiceV1.
         $this->app->bind(AutoAssignmentStrategy::class, LeastLoadedAssignmentStrategy::class);
     }
 
@@ -26,11 +27,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Every permission name works as an ability:
-        // Gate::allows('settings.manage'), @can('ticket.create'), middleware('can:import.run').
-        // Returning null (not false) lets policies decide abilities like 'view' and 'update'.
         Gate::before(fn (User $user, string $ability) => $user->hasPermission($ability) ? true : null);
 
         Gate::policy(Ticket::class, TicketPolicy::class);
+        
+        View::composer('layouts.partials.topbar', function ($view) {
+            $view->with(app(NotificationServiceV1::class)->forBell(auth()->user()));
+        });
     }
 }

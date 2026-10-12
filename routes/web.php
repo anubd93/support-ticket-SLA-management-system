@@ -3,6 +3,7 @@
 use App\Http\Controllers\V1\AttachmentControllerV1;
 use App\Http\Controllers\V1\AuthControllerV1;
 use App\Http\Controllers\V1\DashboardControllerV1;
+use App\Http\Controllers\V1\NotificationControllerV1;
 use App\Http\Controllers\V1\TicketAssignmentControllerV1;
 use App\Http\Controllers\V1\TicketControllerV1;
 use App\Http\Controllers\V1\TicketReplyControllerV1;
@@ -33,6 +34,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::patch('/{id}/assign', [TicketAssignmentControllerV1::class, 'assign'])->whereNumber('id')->name('tickets.assign');
         Route::post('/{id}/claim', [TicketAssignmentControllerV1::class, 'claim'])->whereNumber('id')->name('tickets.claim');
         Route::post('/{id}/replies', [TicketReplyControllerV1::class, 'store'])->whereNumber('id')->name('tickets.replies.store');
+    });
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/{id}', [NotificationControllerV1::class, 'open'])->whereUuid('id')->name('notifications.open');
+        Route::post('/read-all', [NotificationControllerV1::class, 'readAll'])->name('notifications.read_all');
     });
 
     Route::prefix('attachments')->group(function () {

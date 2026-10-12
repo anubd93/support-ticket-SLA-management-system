@@ -7,6 +7,8 @@ use App\Enums\V1\SlaStatus;
 use App\Enums\V1\TicketPriority;
 use App\Enums\V1\TicketSource;
 use App\Enums\V1\TicketStatus;
+use App\Events\V1\TicketCreated;
+use App\Events\V1\TicketStatusChanged;
 use Exception;
 use App\Models\User;
 use App\Models\V1\Ticket;
@@ -70,6 +72,9 @@ class TicketServiceV1
             ]));
 
             $this->ticketAssignmentServiceV1->autoAssign($ticket);
+
+            // Queued notifications; dispatched only after this transaction commits.
+            TicketCreated::dispatch($ticket->id, $userId);
 
             return $ticket;
         });
@@ -179,6 +184,8 @@ class TicketServiceV1
             };
 
             $this->logActivity($ticket->id, $userId, $type, ['status' => $from->value], ['status' => $to->value]);
+
+            TicketStatusChanged::dispatch($ticket->id, $from->value, $to->value, $userId);
 
             return $ticket;
         });

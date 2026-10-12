@@ -5,6 +5,7 @@ namespace App\Repositories\V1;
 use App\Enums\V1\TicketStatus;
 use App\Enums\V1\UserRole;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +84,22 @@ class UserRepositoryV1
     public function updateLastAssignedAt(): int
     {
         return User::whereKey($this->id)->update(['last_assigned_at' => $this->last_assigned_at]);
+    }
+
+    public function getNotifiableByIds(array $ids): EloquentCollection
+    {
+        return User::query()
+            ->whereIn('id', array_unique(array_filter($ids)))
+            ->where('is_active', true)
+            ->get();
+    }
+
+    public function getNotifiableAdmins(): EloquentCollection
+    {
+        return User::query()
+            ->whereIn('role_id', DB::table('roles')->where('name', UserRole::Admin)->select('id'))
+            ->where('is_active', true)
+            ->get();
     }
 
     public function getNameById(): ?string
