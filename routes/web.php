@@ -3,6 +3,7 @@
 use App\Http\Controllers\V1\AttachmentControllerV1;
 use App\Http\Controllers\V1\AuthControllerV1;
 use App\Http\Controllers\V1\DashboardControllerV1;
+use App\Http\Controllers\V1\ImportControllerV1;
 use App\Http\Controllers\V1\NotificationControllerV1;
 use App\Http\Controllers\V1\TicketAssignmentControllerV1;
 use App\Http\Controllers\V1\TicketControllerV1;
@@ -39,6 +40,14 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('notifications')->group(function () {
         Route::get('/{id}', [NotificationControllerV1::class, 'open'])->whereUuid('id')->name('notifications.open');
         Route::post('/read-all', [NotificationControllerV1::class, 'readAll'])->name('notifications.read_all');
+    });
+    
+    Route::prefix('imports')->middleware('can:import.run')->group(function () {
+        Route::get('/', [ImportControllerV1::class, 'index'])->name('imports.index');
+        Route::get('/create', [ImportControllerV1::class, 'create'])->name('imports.create');
+        Route::post('/', [ImportControllerV1::class, 'store'])->name('imports.store');
+        Route::get('/template', [ImportControllerV1::class, 'template'])->name('imports.template');
+        Route::get('/{id}', [ImportControllerV1::class, 'show'])->whereNumber('id')->name('imports.show');
     });
 
     Route::prefix('attachments')->group(function () {

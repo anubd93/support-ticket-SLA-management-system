@@ -35,7 +35,8 @@
 
         @can('import.run')
             <div class="nav-label">Data</div>
-            <a href="#" class="nav-item"><i class="icon-file-spreadsheet"></i>CSV import</a>
+            <a href="{{ route('imports.create') }}" class="nav-item {{ request()->routeIs('imports.create') ? 'active' : '' }}"><i class="icon-file-spreadsheet"></i>CSV import</a>
+            <a href="{{ route('imports.index') }}" class="nav-item {{ request()->routeIs('imports.index', 'imports.show') ? 'active' : '' }}"><i class="icon-list"></i>All imports</a>
         @endcan
     </nav>
 

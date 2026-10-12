@@ -102,6 +102,25 @@ class UserRepositoryV1
             ->where('is_active', true)
             ->get();
     }
+    
+    public function getActiveIdsByEmail(array $emails, UserRole $role): array
+    {
+        $emails = array_values(array_unique(array_filter(array_map('strtolower', $emails))));
+
+        if (! $emails) {
+            return [];
+        }
+
+        return DB::table('users as u')
+            ->join('roles as r', 'r.id', '=', 'u.role_id')
+            ->where('r.name', $role)
+            ->where('u.is_active', true)
+            ->whereNull('u.deleted_at')
+            ->whereIn('u.email', $emails)
+            ->pluck('u.id', 'u.email')
+            ->mapWithKeys(fn ($id, $email) => [strtolower($email) => (int) $id])
+            ->all();
+    }
 
     public function getNameById(): ?string
     {

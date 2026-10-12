@@ -13,4 +13,12 @@ class ImportError extends Model
     protected $guarded = [];
 
     protected $table = 'import_errors';
+
+    protected function casts(): array
+    {
+        return [
+            'row_data' => 'array',
+            'errors' => 'array',
+        ];
+    }
 }

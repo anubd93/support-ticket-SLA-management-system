@@ -203,6 +203,7 @@ class TicketRepositoryV1
             'priority' => $this->priority,
             'status' => $this->status,
             'source' => $this->source,
+            'external_reference' => $this->external_reference,
             'category_id' => $this->category_id,
             'created_by' => $this->created_by,
             'sla_due_at' => $this->sla_due_at,
@@ -337,6 +338,18 @@ class TicketRepositoryV1
             ->whereIn('status', [TicketStatus::Open, TicketStatus::InProgress])
             ->whereNull('deleted_at')
             ->select('id', 'sla_due_at', 'sla_warning_at');
+    }
+    
+    public function getExistingExternalReferences(array $references): array
+    {
+        if (! $references) {
+            return [];
+        }
+
+        return DB::table('tickets')
+            ->whereIn('external_reference', $references)
+            ->pluck('ticket_number', 'external_reference')
+            ->all();
     }
 
     public function findById(): ?object

@@ -58,6 +58,7 @@ class TicketServiceV1
                 ->setPriority($priority->value)
                 ->setStatus(TicketStatus::Open->value)
                 ->setSource(TicketSource::Web->value)
+                ->setExternalReference(null)
                 ->setCreatedBy($userId)
                 ->setSlaDueAt($deadlines['due_at'])
                 ->setSlaWarningAt($deadlines['warning_at'])
@@ -74,6 +75,41 @@ class TicketServiceV1
             $this->ticketAssignmentServiceV1->autoAssign($ticket);
             
             TicketCreated::dispatch($ticket->id, $userId);
+
+            return $ticket;
+        });
+    }
+    
+    public function createFromImport(array $row, int $customerId, ?int $agentId, int $importerId): Ticket
+    {
+        return DB::transaction(function () use ($row, $customerId, $agentId, $importerId) {
+            $priority = TicketPriority::from($row['priority']);
+            $deadlines = $this->slaCalculatorServiceV1->deadlines($priority, now());
+
+            $ticket = $this->ticketRepositoryV1
+                ->setTicketNumber($this->ticketNumberServiceV1->generate())
+                ->setSubject($row['subject'])
+                ->setDescription($row['description'])
+                ->setCategoryId($row['category_id'])
+                ->setPriority($priority->value)
+                ->setStatus(TicketStatus::Open->value)
+                ->setSource(TicketSource::Import->value)
+                ->setExternalReference($row['external_reference'])
+                ->setCreatedBy($customerId)
+                ->setSlaDueAt($deadlines['due_at'])
+                ->setSlaWarningAt($deadlines['warning_at'])
+                ->store();
+
+            $this->logActivity($ticket->id, $importerId, ActivityType::Created, null, [
+                'ticket_number' => $ticket->ticket_number,
+                'priority' => $priority->value,
+                'source' => TicketSource::Import->value,
+                'external_reference' => $row['external_reference'],
+            ]);
+
+            $agentId
+                ? $this->ticketAssignmentServiceV1->assignImported($ticket, $agentId, $importerId)
+                : $this->ticketAssignmentServiceV1->autoAssign($ticket, notify: false);
 
             return $ticket;
         });
@@ -247,7 +283,6 @@ class TicketServiceV1
             'statuses' => collect($statuses)->mapWithKeys(fn (TicketStatus $status) => [$status->value => $status->label()])->all(),
             'priorities' => collect(TicketPriority::cases())->mapWithKeys(fn (TicketPriority $priority) => [$priority->value => $priority->label()])->all(),
             'categories' => $this->categoryRepositoryV1->getActive(),
-            // The agent filter makes no sense on Unassigned or My queue.
             'agents' => $isStaff && in_array($list, ['active', 'finished'], true) ? $this->ticketAssignmentServiceV1->getAgentOptions() : null,
             'showCustomer' => $isStaff,
             'sla' => $sla,

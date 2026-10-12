@@ -21,8 +21,8 @@ class TicketAssignmentServiceV1
                                 private readonly TicketActivityRepositoryV1 $ticketActivityRepositoryV1,
                                 private readonly AutoAssignmentStrategy $autoAssignmentStrategy
     ) {}
-
-    public function autoAssign(Ticket $ticket): void
+    
+    public function autoAssign(Ticket $ticket, bool $notify = true): void
     {
         $agentId = $this->autoAssignmentStrategy->pickAgent((int) $ticket->category_id);
 
@@ -43,7 +43,24 @@ class TicketAssignmentServiceV1
             'auto' => true,
         ]);
 
-        TicketAssigned::dispatch($ticket->id, $agentId, null);
+        if ($notify) {
+            TicketAssigned::dispatch($ticket->id, $agentId, null);
+        }
+    }
+
+    public function assignImported(Ticket $ticket, int $agentId, int $importerId): void
+    {
+        $this->ticketRepositoryV1
+            ->setAssignedTo($agentId)
+            ->setAssignedAt(now())
+            ->assign($ticket);
+
+        $this->touchAgent($agentId);
+
+        $this->logActivity($ticket->id, $importerId, ActivityType::Assigned, null, [
+            'agent_id' => $agentId,
+            'agent' => $this->userRepositoryV1->setId($agentId)->getNameById(),
+        ]);
     }
 
     public function assign(int $id, ?int $agentId, int $userId): Ticket
@@ -142,9 +159,6 @@ class TicketAssignmentServiceV1
         return $this->userRepositoryV1->getAgents();
     }
 
-    /**
-     * Round-robin tie-breaker for auto-assignment.
-     */
     private function touchAgent(int $agentId): void
     {
         $this->userRepositoryV1

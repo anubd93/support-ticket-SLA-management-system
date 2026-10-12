@@ -18,7 +18,7 @@
     <p>
         @switch($type)
             @case(\App\Enums\V1\ActivityType::Created)
-                Ticket created by {{ $actor }}
+                Ticket created by {{ $actor }}@if (($new['source'] ?? null) === 'import') <span class="faint">(CSV import{{ isset($new['external_reference']) ? ', ref ' . $new['external_reference'] : '' }})</span>@endif
                 @break
             @case(\App\Enums\V1\ActivityType::PriorityChanged)
                 Priority changed from <span class="strong">{{ $priorityLabel($old['priority'] ?? null) }}</span>

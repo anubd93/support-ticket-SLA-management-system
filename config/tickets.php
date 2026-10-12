@@ -15,4 +15,11 @@ return [
         'mimes' => ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'zip'],
     ],
 
+    'import' => [
+        'disk' => env('IMPORT_DISK', 'local'),
+        'max_kb' => 20480,
+        'chunk' => 200,
+        'sync_max_rows' => 200,
+    ],
+
 ];
