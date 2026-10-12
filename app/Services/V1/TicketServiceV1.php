@@ -7,7 +7,7 @@ use App\Enums\V1\SlaStatus;
 use App\Enums\V1\TicketPriority;
 use App\Enums\V1\TicketSource;
 use App\Enums\V1\TicketStatus;
-use App\Exceptions\V1\TicketException;
+use Exception;
 use App\Models\User;
 use App\Models\V1\Ticket;
 use App\Repositories\V1\CategoryRepositoryV1;
@@ -23,7 +23,8 @@ class TicketServiceV1
                                 private readonly CategoryRepositoryV1 $categoryRepositoryV1,
                                 private readonly TicketActivityRepositoryV1 $ticketActivityRepositoryV1,
                                 private readonly TicketNumberServiceV1 $ticketNumberServiceV1,
-                                private readonly SlaCalculatorServiceV1 $slaCalculatorServiceV1
+                                private readonly SlaCalculatorServiceV1 $slaCalculatorServiceV1,
+                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1
     ) {}
 
     public function create(array $data, int $userId): Ticket
@@ -50,6 +51,8 @@ class TicketServiceV1
                 'priority' => $priority->value,
             ]);
 
+            $this->ticketAssignmentServiceV1->autoAssign($ticket);
+
             return $ticket;
         });
     }
@@ -60,7 +63,7 @@ class TicketServiceV1
             $ticket = $this->ticketRepositoryV1->setId($id)->findForUpdate();
 
             if ($ticket->status === TicketStatus::Closed) {
-                throw new TicketException('Closed tickets cannot be edited.');
+                throw new Exception('Closed tickets cannot be edited.');
             }
 
             $oldPriority = $ticket->priority;
@@ -72,7 +75,6 @@ class TicketServiceV1
                 'description' => $ticket->description !== $data['description'],
             ]));
             
-            // A new priority means new deadlines, still counted from when the ticket was opened.
             $deadlines = $newPriority === $oldPriority
                 ? ['due_at' => $ticket->sla_due_at, 'warning_at' => $ticket->sla_warning_at]
                 : $this->slaCalculatorServiceV1->deadlines($newPriority, $ticket->created_at, (int) $ticket->sla_paused_minutes);
@@ -113,7 +115,7 @@ class TicketServiceV1
             $to = TicketStatus::from($status);
 
             if (! $from->canTransitionTo($to)) {
-                throw new TicketException("A ticket that is {$from->label()} cannot be changed to {$to->label()}.");
+                throw new Exception("A ticket that is {$from->label()} cannot be changed to {$to->label()}.");
             }
 
             $resolvedAt = $ticket->resolved_at;
@@ -126,8 +128,7 @@ class TicketServiceV1
             } elseif ($from === TicketStatus::Resolved) {
                 $resolvedAt = null;
             }
-
-            // SLA pause: the clock stops while waiting for the customer.
+            
             $pausedAt = $ticket->sla_paused_at;
             $pausedMinutes = (int) $ticket->sla_paused_minutes;
             $deadlines = ['due_at' => $ticket->sla_due_at, 'warning_at' => $ticket->sla_warning_at];
@@ -135,7 +136,6 @@ class TicketServiceV1
             if ($to->pausesSla() && ! $from->pausesSla()) {
                 $pausedAt = now();
             } elseif ($from->pausesSla() && ! $to->pausesSla()) {
-                // Resume: add the paused business time and move the deadlines forward.
                 if ($pausedAt) {
                     $pausedMinutes += $this->slaCalculatorServiceV1->businessMinutesBetween($pausedAt, now());
                 }
@@ -176,19 +176,29 @@ class TicketServiceV1
         return $this->scopedTo($user)->getFinished(config('tickets.per_page'));
     }
 
+    public function getUnassignedTickets(User $user): LengthAwarePaginator
+    {
+        return $this->scopedTo($user)->getUnassigned(config('tickets.per_page'));
+    }
+
+    /**
+     * "My queue": active tickets assigned to this agent.
+     */
+    public function getMyQueue(User $user): LengthAwarePaginator
+    {
+        return $this->scopedTo($user, $user->id)->getActive(config('tickets.per_page'));
+    }
+
     public function getTabCounts(User $user): array
     {
         return $this->scopedTo($user)->countByGroup();
     }
 
-    /**
-     * Users without ticket.view_all (customers) only see tickets they created.
-     */
-    private function scopedTo(User $user): TicketRepositoryV1
+    private function scopedTo(User $user, ?int $assignedTo = null): TicketRepositoryV1
     {
-        return $this->ticketRepositoryV1->setOnlyCreatedBy(
-            $user->hasPermission('ticket.view_all') ? null : $user->id
-        );
+        return $this->ticketRepositoryV1
+            ->setOnlyCreatedBy($user->hasPermission('ticket.view_all') ? null : $user->id)
+            ->setOnlyAssignedTo($assignedTo);
     }
 
     public function findTicket(int $id): ?object
@@ -201,9 +211,6 @@ class TicketServiceV1
         return $this->ticketActivityRepositoryV1->setTicketId($ticketId)->getByTicketId();
     }
 
-    /**
-     * SLA card data for the ticket page, all counted in business time.
-     */
     public function getSlaSummary(object $ticket): array
     {
         $status = TicketStatus::from($ticket->status);
@@ -227,8 +234,7 @@ class TicketServiceV1
                 'paused_minutes' => (int) $ticket->sla_paused_minutes,
             ];
         }
-
-        // While paused the remaining time is frozen at the moment the pause started.
+        
         $countFrom = $pausedAt ?? now();
         $remaining = $this->slaCalculatorServiceV1->businessMinutesBetween($countFrom, $dueAt);
         $overdue = $dueAt->lt($countFrom) ? $this->slaCalculatorServiceV1->businessMinutesBetween($dueAt, $countFrom) : 0;

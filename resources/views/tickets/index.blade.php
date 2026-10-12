@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Active tickets')
+@section('title', match (true) {
+    request()->routeIs('tickets.unassigned') => 'Unassigned tickets',
+    request()->routeIs('tickets.queue') => 'My queue',
+    default => 'Active tickets',
+})
 
 @section('content')
 <div class="page-head">
@@ -39,6 +43,9 @@
                         <button type="button" class="icon-btn" data-dropdown aria-label="Actions"><i class="icon-ellipsis"></i></button>
                         <div class="menu">
                             <a href="{{ route('tickets.show', $ticket->id) }}" class="menu-item"><i class="icon-eye"></i>View</a>
+                            @can('claim', [\App\Models\V1\Ticket::class, $ticket])
+                                <button type="button" class="menu-item" data-claim="{{ route('tickets.claim', $ticket->id) }}"><i class="icon-user-check"></i>Accept</button>
+                            @endcan
                             @can('update', [\App\Models\V1\Ticket::class, $ticket])
                                 <a href="{{ route('tickets.edit', $ticket->id) }}" class="menu-item"><i class="icon-pencil"></i>Edit</a>
                             @endcan
@@ -47,7 +54,13 @@
                 </td>
             </tr>
         @empty
-            <tr><td colspan="8" class="center muted">No active tickets. <a href="{{ route('tickets.create') }}">Create one</a>.</td></tr>
+            @if (request()->routeIs('tickets.unassigned'))
+                <tr><td colspan="8" class="center muted">Every active ticket has an agent.</td></tr>
+            @elseif (request()->routeIs('tickets.queue'))
+                <tr><td colspan="8" class="center muted">No tickets assigned to you. Pick one from <a href="{{ route('tickets.unassigned') }}">Unassigned</a>.</td></tr>
+            @else
+                <tr><td colspan="8" class="center muted">No active tickets. <a href="{{ route('tickets.create') }}">Create one</a>.</td></tr>
+            @endif
         @endforelse
         </tbody>
     </table>
@@ -55,3 +68,33 @@
 
 @include('tickets.partials.pager', ['paginator' => $tickets])
 @endsection
+
+@push('scripts')
+<script>
+    // POST /tickets/{id}/claim -> 200 { redirect } | 403/422 { message } when another agent was faster
+    document.querySelectorAll('[data-claim]').forEach(function (button) {
+        button.addEventListener('click', async function () {
+            button.disabled = true;
+
+            try {
+                const response = await fetch(button.dataset.claim, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                });
+                const data = await response.json().catch(function () { return {}; });
+
+                if (response.ok) return window.location.assign(data.redirect);
+
+                window.alert(data.message || 'Something went wrong. Please try again.');
+            } catch (error) {
+                window.alert('Could not reach the server. Please try again.');
+            }
+
+            window.location.reload();
+        });
+    });
+</script>
+@endpush

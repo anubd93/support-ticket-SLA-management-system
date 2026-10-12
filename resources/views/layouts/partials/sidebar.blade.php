@@ -10,9 +10,11 @@
 
         <div class="nav-label">Tickets</div>
         <a href="{{ route('tickets.index') }}" class="nav-item {{ request()->routeIs('tickets.index', 'tickets.resolved', 'tickets.show', 'tickets.edit') ? 'active' : '' }}"><i class="icon-inbox"></i>{{ auth()->user()->can('ticket.view_all') ? 'All tickets' : 'My tickets' }}</a>
-        @can('ticket.view_all')
-            <a href="#" class="nav-item"><i class="icon-user-x"></i>Unassigned</a>
-            <a href="#" class="nav-item"><i class="icon-user-check"></i>My queue</a>
+        @canany(['ticket.claim', 'ticket.assign'])
+            <a href="{{ route('tickets.unassigned') }}" class="nav-item {{ request()->routeIs('tickets.unassigned') ? 'active' : '' }}"><i class="icon-user-x"></i>Unassigned</a>
+        @endcanany
+        @can('ticket.claim')
+            <a href="{{ route('tickets.queue') }}" class="nav-item {{ request()->routeIs('tickets.queue') ? 'active' : '' }}"><i class="icon-user-check"></i>My queue</a>
         @endcan
         @can('ticket.create')
             <a href="{{ route('tickets.create') }}" class="nav-item {{ request()->routeIs('tickets.create') ? 'active' : '' }}"><i class="icon-plus"></i>New ticket</a>

@@ -39,7 +39,7 @@
             <div class="demo">
                 <div class="mb-1"><span class="strong">Demo accounts</span><span>password: <code>password</code></span></div>
                 <div><span>Administrator</span><span class="mono">admin@supportdesk.com</span></div>
-                <div><span>Support agent</span><span class="mono">support_agent@supportdesk.com</span></div>
+                <div><span>Support agent</span><span class="mono">support_agent_01@supportdesk.com</span></div>
                 <div><span>Customer</span><span class="mono">user_01@test.com</span></div>
             </div>
         @endif

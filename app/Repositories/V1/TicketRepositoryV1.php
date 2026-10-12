@@ -16,12 +16,19 @@ class TicketRepositoryV1
         $sla_warning_sent_at, $sla_breached_at, $escalated_at, $escalation_level,
         $resolved_at, $closed_at, $lock_version, $created_at;
 
-    // When set, list queries only return tickets created by this user (customers).
     private ?int $only_created_by = null;
 
     public function setOnlyCreatedBy(?int $only_created_by)
     {
         $this->only_created_by = $only_created_by;
+        return $this;
+    }
+    
+    private ?int $only_assigned_to = null;
+
+    public function setOnlyAssignedTo(?int $only_assigned_to)
+    {
+        $this->only_assigned_to = $only_assigned_to;
         return $this;
     }
 
@@ -225,6 +232,34 @@ class TicketRepositoryV1
         return $ticket;
     }
 
+    public function assign(Ticket $ticket): Ticket
+    {
+        $ticket->update([
+            'assigned_to' => $this->assigned_to,
+            'assigned_at' => $this->assigned_at,
+        ]);
+
+        return $ticket;
+    }
+
+    public function claimIfUnassigned(): int
+    {
+        return Ticket::whereKey($this->id)
+            ->whereNull('assigned_to')
+            ->whereIn('status', TicketStatus::active())
+            ->update([
+                'assigned_to' => $this->assigned_to,
+                'assigned_at' => $this->assigned_at,
+            ]);
+    }
+
+    public function markInProgress(Ticket $ticket): Ticket
+    {
+        $ticket->update(['status' => TicketStatus::InProgress]);
+
+        return $ticket;
+    }
+
     public function findById(): ?object
     {
         return $this->baseQuery()
@@ -251,22 +286,39 @@ class TicketRepositoryV1
             ->paginate($perPage);
     }
 
+    public function getUnassigned(int $perPage): LengthAwarePaginator
+    {
+        return $this->baseQuery()
+            ->whereNull('t.assigned_to')
+            ->whereIn('t.status', TicketStatus::active())
+            ->orderBy('t.sla_due_at')
+            ->orderBy('t.id')
+            ->paginate($perPage);
+    }
+
     public function countByGroup(): array
     {
         $active = TicketStatus::active();
+        $placeholders = implode(',', array_fill(0, count($active), '?'));
 
         $row = DB::table('tickets')
             ->whereNull('deleted_at')
             ->when($this->only_created_by, fn ($query, $userId) => $query->where('created_by', $userId))
             ->selectRaw(
-                'SUM(CASE WHEN status IN (' . implode(',', array_fill(0, count($active), '?')) . ') THEN 1 ELSE 0 END) AS active_count, COUNT(*) AS total_count',
-                $active
+                "SUM(CASE WHEN status IN ($placeholders) THEN 1 ELSE 0 END) AS active_count,
+                 SUM(CASE WHEN status IN ($placeholders) AND assigned_to IS NULL THEN 1 ELSE 0 END) AS unassigned_count,
+                 COUNT(*) AS total_count",
+                array_merge($active, $active)
             )
             ->first();
 
         $activeCount = (int) $row->active_count;
 
-        return ['active' => $activeCount, 'finished' => (int) $row->total_count - $activeCount];
+        return [
+            'active' => $activeCount,
+            'unassigned' => (int) $row->unassigned_count,
+            'finished' => (int) $row->total_count - $activeCount,
+        ];
     }
 
     private function baseQuery(): Builder
@@ -277,6 +329,7 @@ class TicketRepositoryV1
             ->leftJoin('users as a', 'a.id', '=', 't.assigned_to')
             ->whereNull('t.deleted_at')
             ->when($this->only_created_by, fn ($query, $userId) => $query->where('t.created_by', $userId))
+            ->when($this->only_assigned_to, fn ($query, $agentId) => $query->where('t.assigned_to', $agentId))
             ->select(
                 't.id',
                 't.created_by',

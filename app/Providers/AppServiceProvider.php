@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Models\User;
 use App\Models\V1\Ticket;
 use App\Policies\V1\TicketPolicy;
+use App\Services\V1\Assignment\AutoAssignmentStrategy;
+use App\Services\V1\Assignment\LeastLoadedAssignmentStrategy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,7 +17,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Swap the auto-assignment rule here (e.g. pure round-robin) without touching TicketServiceV1.
+        $this->app->bind(AutoAssignmentStrategy::class, LeastLoadedAssignmentStrategy::class);
     }
 
     /**

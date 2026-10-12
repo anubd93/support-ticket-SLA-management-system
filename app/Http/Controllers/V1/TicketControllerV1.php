@@ -7,6 +7,7 @@ use App\Http\Requests\V1\StoreTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketRequestV1;
 use App\Http\Requests\V1\UpdateTicketStatusRequestV1;
 use App\Models\V1\Ticket;
+use App\Services\V1\TicketAssignmentServiceV1;
 use App\Services\V1\TicketServiceV1;
 use Exception;
 use Illuminate\Contracts\View\View;
@@ -17,12 +18,34 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TicketControllerV1 extends Controller
 {
-    public function __construct(private readonly TicketServiceV1 $ticketServiceV1) {}
+    public function __construct(private readonly TicketServiceV1 $ticketServiceV1,
+                                private readonly TicketAssignmentServiceV1 $ticketAssignmentServiceV1
+    ) {}
 
     public function index(Request $request): View
     {
         return view('tickets.index', [
             'tickets' => $this->ticketServiceV1->getActiveTickets($request->user()),
+            'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+        ]);
+    }
+
+    public function unassigned(Request $request): View
+    {
+        abort_unless(Gate::any(['ticket.claim', 'ticket.assign']), Response::HTTP_FORBIDDEN);
+
+        return view('tickets.index', [
+            'tickets' => $this->ticketServiceV1->getUnassignedTickets($request->user()),
+            'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
+        ]);
+    }
+
+    public function queue(Request $request): View
+    {
+        Gate::authorize('ticket.claim');
+
+        return view('tickets.index', [
+            'tickets' => $this->ticketServiceV1->getMyQueue($request->user()),
             'counts' => $this->ticketServiceV1->getTabCounts($request->user()),
         ]);
     }
@@ -67,6 +90,9 @@ class TicketControllerV1 extends Controller
             'ticket' => $ticket,
             'activities' => $this->ticketServiceV1->getActivities($id),
             'sla' => $this->ticketServiceV1->getSlaSummary($ticket),
+            'agents' => Gate::allows('assign', [Ticket::class, $ticket])
+                ? $this->ticketAssignmentServiceV1->getAgentOptions()
+                : collect(),
         ]);
     }
 

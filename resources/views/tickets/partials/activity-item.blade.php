@@ -7,7 +7,7 @@
     $statusLabel = fn ($value) => \App\Enums\V1\TicketStatus::tryFrom($value ?? '')?->label() ?? $value;
     $priorityLabel = fn ($value) => \App\Enums\V1\TicketPriority::tryFrom($value ?? '')?->label() ?? $value;
     $dotClass = match ($type) {
-        \App\Enums\V1\ActivityType::Created => 'teal',
+        \App\Enums\V1\ActivityType::Created, \App\Enums\V1\ActivityType::Assigned => 'teal',
         \App\Enums\V1\ActivityType::Resolved, \App\Enums\V1\ActivityType::Closed => 'green',
         \App\Enums\V1\ActivityType::PriorityChanged, \App\Enums\V1\ActivityType::Reopened => 'amber',
         default => '',
@@ -26,6 +26,21 @@
             @case(\App\Enums\V1\ActivityType::CategoryChanged)
                 Category changed from <span class="strong">{{ $old['category'] ?? '-' }}</span>
                 to <span class="strong">{{ $new['category'] ?? '-' }}</span> by {{ $actor }}
+                @break
+            @case(\App\Enums\V1\ActivityType::Assigned)
+                @if (! empty($new['auto']))
+                    Auto-assigned to <span class="strong">{{ $new['agent'] ?? '-' }}</span>
+                @elseif (! empty($new['claimed']))
+                    Accepted by <span class="strong">{{ $new['agent'] ?? $actor }}</span>
+                @elseif (! empty($old['agent']))
+                    Reassigned from <span class="strong">{{ $old['agent'] }}</span>
+                    to <span class="strong">{{ $new['agent'] ?? '-' }}</span> by {{ $actor }}
+                @else
+                    Assigned to <span class="strong">{{ $new['agent'] ?? '-' }}</span> by {{ $actor }}
+                @endif
+                @break
+            @case(\App\Enums\V1\ActivityType::Unassigned)
+                Unassigned from <span class="strong">{{ $old['agent'] ?? '-' }}</span> by {{ $actor }}
                 @break
             @case(\App\Enums\V1\ActivityType::Updated)
                 {{ ucfirst(implode(' and ', $new['fields'] ?? ['details'])) }} updated by {{ $actor }}

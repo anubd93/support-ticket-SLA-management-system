@@ -103,6 +103,49 @@
         @endcan
 
         <div class="card">
+            <div class="card-head"><h2>Assignment</h2></div>
+            <div class="card-body">
+                @can('assign', [\App\Models\V1\Ticket::class, $ticket])
+                    <form id="assign-form" method="POST" action="{{ route('tickets.assign', $ticket->id) }}" novalidate>
+                        @csrf
+                        @method('PATCH')
+                        <div class="callout red" data-form-alert style="display:none">
+                            <i class="icon-circle-alert"></i>
+                            <div data-form-alert-text></div>
+                        </div>
+                        <div class="field">
+                            <label class="label" for="agent_id">Agent</label>
+                            <select id="agent_id" name="agent_id" class="select">
+                                <option value="">Unassigned</option>
+                                @foreach ($agents as $agent)
+                                    <option value="{{ $agent->id }}" @selected((int) $ticket->assigned_to === (int) $agent->id)>
+                                        {{ $agent->name }} · {{ $agent->open_count }} open{{ $agent->is_available ? '' : ' · away' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="error" data-error-for="agent_id" style="display:none"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Save assignment</button>
+                    </form>
+                @elsecan('claim', [\App\Models\V1\Ticket::class, $ticket])
+                    <form id="claim-form" method="POST" action="{{ route('tickets.claim', $ticket->id) }}" novalidate>
+                        @csrf
+                        <div class="callout red" data-form-alert style="display:none">
+                            <i class="icon-circle-alert"></i>
+                            <div data-form-alert-text></div>
+                        </div>
+                        <p class="muted">Nobody is working on this ticket yet.</p>
+                        <button type="submit" class="btn btn-primary btn-block">Accept ticket</button>
+                    </form>
+                @else
+                    <dl class="meta">
+                        <div><dt>Agent</dt><dd>{!! $ticket->assignee_name ? e($ticket->assignee_name) : '<span class="faint">Unassigned</span>' !!}</dd></div>
+                    </dl>
+                @endcan
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-head"><h2>SLA</h2><span class="ml-auto">@include('tickets.partials.sla-badge', ['ticket' => $ticket])</span></div>
             <div class="card-body">
                 @if ($slaState instanceof \App\Enums\V1\SlaStatus && $slaState !== \App\Enums\V1\SlaStatus::Breached)
@@ -167,5 +210,13 @@
     if (statusForm) {
         AjaxForm.handle(statusForm, function () { window.location.reload(); });
     }
+
+    // PATCH /tickets/{id}/assign (admin) and POST /tickets/{id}/claim (agent) -> reload on success
+    ['assign-form', 'claim-form'].forEach(function (id) {
+        const form = document.getElementById(id);
+        if (form) {
+            AjaxForm.handle(form, function () { window.location.reload(); });
+        }
+    });
 </script>
 @endpush

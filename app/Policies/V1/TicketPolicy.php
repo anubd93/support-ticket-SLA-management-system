@@ -41,6 +41,43 @@ class TicketPolicy
             : Response::deny('You are not allowed to change the ticket status.');
     }
 
+    public function assign(User $user, object $ticket): Response
+    {
+        if (! $this->canSee($user, $ticket)) {
+            return Response::denyAsNotFound();
+        }
+
+        if (! $user->hasPermission('ticket.assign')) {
+            return Response::deny('You are not allowed to assign tickets.');
+        }
+
+        return $this->status($ticket)->isActive()
+            ? Response::allow()
+            : Response::deny('Resolved or closed tickets cannot be reassigned.');
+    }
+
+    /**
+     * Pre-check for the Accept button. The real race is settled by the atomic update in the service.
+     */
+    public function claim(User $user, object $ticket): Response
+    {
+        if (! $this->canSee($user, $ticket)) {
+            return Response::denyAsNotFound();
+        }
+
+        if (! $user->hasPermission('ticket.claim')) {
+            return Response::deny('You are not allowed to accept tickets.');
+        }
+
+        if ($ticket->assigned_to) {
+            return Response::deny('Already taken by ' . ($ticket->assignee_name ?? 'another agent') . '.');
+        }
+
+        return $this->status($ticket)->isActive()
+            ? Response::allow()
+            : Response::deny('Resolved or closed tickets cannot be accepted.');
+    }
+
     private function canSee(User $user, object $ticket): bool
     {
         if ($user->hasPermission('ticket.view_all')) {
