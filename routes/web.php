@@ -1,0 +1,65 @@
+<?php
+
+use App\Http\Controllers\V1\AttachmentControllerV1;
+use App\Http\Controllers\V1\AuthControllerV1;
+use App\Http\Controllers\V1\DashboardControllerV1;
+use App\Http\Controllers\V1\ImportControllerV1;
+use App\Http\Controllers\V1\NotificationControllerV1;
+use App\Http\Controllers\V1\TicketAssignmentControllerV1;
+use App\Http\Controllers\V1\TicketControllerV1;
+use App\Http\Controllers\V1\TicketReplyControllerV1;
+use App\Http\Controllers\V1\UserControllerV1;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return redirect('login');
+});
+
+Route::get('login', [AuthControllerV1::class, 'getLogin'])->name('login');
+Route::post('login', [AuthControllerV1::class, 'login']);
+Route::get('logout', [AuthControllerV1::class, 'logout'])->name('logout');
+
+Route::middleware(['auth', 'active'])->group(function () {
+    Route::get('dashboard', [DashboardControllerV1::class, 'index'])->name('dashboard');
+
+    Route::prefix('tickets')->group(function () {
+        Route::get('/', [TicketControllerV1::class, 'index'])->name('tickets.index');
+        Route::get('/queue', [TicketControllerV1::class, 'queue'])->name('tickets.queue');
+        Route::get('/unassigned', [TicketControllerV1::class, 'unassigned'])->name('tickets.unassigned');
+        Route::get('/resolved', [TicketControllerV1::class, 'resolved'])->name('tickets.resolved');
+        Route::get('/create', [TicketControllerV1::class, 'create'])->name('tickets.create');
+        Route::post('/', [TicketControllerV1::class, 'store'])->name('tickets.store');
+        Route::get('/{id}', [TicketControllerV1::class, 'show'])->whereNumber('id')->name('tickets.show');
+        Route::get('/{id}/edit', [TicketControllerV1::class, 'edit'])->whereNumber('id')->name('tickets.edit');
+        Route::put('/{id}', [TicketControllerV1::class, 'update'])->whereNumber('id')->name('tickets.update');
+        Route::patch('/{id}/status', [TicketControllerV1::class, 'updateStatus'])->whereNumber('id')->name('tickets.status');
+        Route::patch('/{id}/assign', [TicketAssignmentControllerV1::class, 'assign'])->whereNumber('id')->name('tickets.assign');
+        Route::post('/{id}/claim', [TicketAssignmentControllerV1::class, 'claim'])->whereNumber('id')->name('tickets.claim');
+        Route::post('/{id}/replies', [TicketReplyControllerV1::class, 'store'])->whereNumber('id')->name('tickets.replies.store');
+    });
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/{id}', [NotificationControllerV1::class, 'open'])->whereUuid('id')->name('notifications.open');
+        Route::post('/read-all', [NotificationControllerV1::class, 'readAll'])->name('notifications.read_all');
+    });
+    
+    Route::prefix('users')->middleware('can:user.manage')->group(function () {
+        Route::get('/', [UserControllerV1::class, 'index'])->name('users.index');
+        Route::get('/create', [UserControllerV1::class, 'create'])->name('users.create');
+        Route::post('/', [UserControllerV1::class, 'store'])->name('users.store');
+        Route::get('/{id}/edit', [UserControllerV1::class, 'edit'])->whereNumber('id')->name('users.edit');
+        Route::put('/{id}', [UserControllerV1::class, 'update'])->whereNumber('id')->name('users.update');
+    });
+
+    Route::prefix('imports')->middleware('can:import.run')->group(function () {
+        Route::get('/', [ImportControllerV1::class, 'index'])->name('imports.index');
+        Route::get('/create', [ImportControllerV1::class, 'create'])->name('imports.create');
+        Route::post('/', [ImportControllerV1::class, 'store'])->name('imports.store');
+        Route::get('/template', [ImportControllerV1::class, 'template'])->name('imports.template');
+        Route::get('/{id}', [ImportControllerV1::class, 'show'])->whereNumber('id')->name('imports.show');
+    });
+
+    Route::prefix('attachments')->group(function () {
+         Route::get('/{id}', [AttachmentControllerV1::class, 'download'])->whereNumber('id')->name('attachments.download');
+    });
+});
